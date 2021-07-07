@@ -19,5 +19,6 @@ fn main() -> std::io::Result<()> {
     tonic_build::configure()
         .build_client(true)
         .build_server(false)
+        .format(false)
         .compile(&[&*lnd_rpc_proto_file], &[dir])
 }
