@@ -8,7 +8,7 @@ Rust implementation of LND RPC client using async GRPC library `tonic`.
 Review it before using with mainnet funds!**
 
 This crate implements LND GRPC using [`tonic`](https://docs.rs/tonic/) and [`prost`](https://docs.rs/prost/).
-Apart from being up-to-date at the time of writing (:D) it also allows `aync` usage.
+Apart from being up-to-date at the time of writing (:D) it also allows `async` usage.
 It contains vendored `rpc.proto` file so LND source code is not *required*
 but accepts an environment variable `LND_REPO_DIR` which overrides the vendored `rpc.proto` file.
 This can be used to test new features in non-released `lnd`.
