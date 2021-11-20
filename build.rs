@@ -13,7 +13,7 @@ fn main() -> std::io::Result<()> {
         None => Path::new("vendor"),
     };
 
-    let lnd_rpc_proto_file = dir.join("rpc.proto");
+    let lnd_rpc_proto_file = dir.join("lightning.proto");
     println!("cargo:rerun-if-changed={}", lnd_rpc_proto_file.display());
 
     tonic_build::configure()
