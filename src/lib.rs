@@ -61,6 +61,9 @@ Undetermined yet, please make suggestions.
 MITNFA
 "###]
 
+/// This is part of public interface so it's re-exported.
+pub extern crate tonic;
+
 use std::path::{Path, PathBuf};
 use std::convert::TryInto;
 pub use error::ConnectError;
@@ -70,6 +73,9 @@ use error::InternalConnectError;
 ///
 /// This is a convenience type which you most likely want to use instead of raw client.
 pub type Client = rpc::lightning_client::LightningClient<tonic::transport::Channel>;
+
+/// [`tonic::Status`] is re-exported as `Error` for convenience.
+pub type Error = tonic::Status;
 
 mod error;
 
