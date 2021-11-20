@@ -1,6 +1,6 @@
 [package]
 name = "tonic_lnd"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Martin Habovstiak <martin.habovstiak@gmail.com>"]
 edition = "2018"
 description = "An async library implementing LND RPC via tonic and prost"
@@ -15,8 +15,8 @@ license = "MITNFA"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tonic = { version = "0.4.3", features = ["transport", "tls"] }
-prost = "0.7.0"
+tonic = { version = "0.5.2", features = ["transport", "tls"] }
+prost = "0.8.0"
 rustls = { version = "0.19.0", features = ["dangerous_configuration"] }
 webpki = "0.21.3"
 rustls-pemfile = "0.2.1"
@@ -24,7 +24,7 @@ hex = "0.4.3"
 tokio = { version = "1.7.1", features = ["fs"] }
 
 [build-dependencies]
-tonic-build = "0.4.2"
+tonic-build = "0.5.2"
 
 [dev-dependencies]
 tokio = { version = "1.7.1", features = ["rt-multi-thread"] }

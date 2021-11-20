@@ -72,7 +72,7 @@ use error::InternalConnectError;
 /// The client returned by `connect` function
 ///
 /// This is a convenience type which you most likely want to use instead of raw client.
-pub type Client = rpc::lightning_client::LightningClient<tonic::transport::Channel>;
+pub type Client = rpc::lightning_client::LightningClient<tonic::codegen::InterceptedService<tonic::transport::Channel, MacaroonInterceptor>>;
 
 /// [`tonic::Status`] is re-exported as `Error` for convenience.
 pub type Error = tonic::Status;
@@ -94,6 +94,20 @@ macro_rules! try_map_err {
 /// types. However it may be better to start from methods on the [`LightningClient`](rpc::lightning_client::LightningClient) type.
 pub mod rpc {
     tonic::include_proto!("lnrpc");
+}
+
+/// Supplies requests with macaroon
+pub struct MacaroonInterceptor {
+    macaroon: String,
+}
+
+impl tonic::service::Interceptor for MacaroonInterceptor {
+    fn call(&mut self, mut request: tonic::Request<()>) -> Result<tonic::Request<()>, Error> {
+        request
+            .metadata_mut()
+            .insert("macaroon", tonic::metadata::MetadataValue::from_str(&self.macaroon).expect("hex produced non-ascii"));
+        Ok(request)
+    }
 }
 
 async fn load_macaroon(path: impl AsRef<Path> + Into<PathBuf>) -> Result<String, InternalConnectError> {
@@ -126,9 +140,9 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
 
     let macaroon = load_macaroon(macaroon_file).await?;
 
-    let interceptor = move |mut request: tonic::Request<_>| { request.metadata_mut().insert("macaroon", tonic::metadata::MetadataValue::from_str(&macaroon).expect("hex produced non-ascii")); Ok(request) };
+    let interceptor = MacaroonInterceptor { macaroon, };
 
-    Ok(Client::with_interceptor(conn, interceptor))
+    Ok(rpc::lightning_client::LightningClient::with_interceptor(conn, interceptor))
 }
 
 mod tls {
