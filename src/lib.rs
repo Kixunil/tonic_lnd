@@ -97,6 +97,7 @@ pub mod rpc {
 }
 
 /// Supplies requests with macaroon
+#[derive(Clone)]
 pub struct MacaroonInterceptor {
     macaroon: String,
 }
