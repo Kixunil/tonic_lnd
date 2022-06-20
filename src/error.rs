@@ -23,7 +23,6 @@ impl From<InternalConnectError> for ConnectError {
 pub(crate) enum InternalConnectError {
     ReadFile { file: PathBuf, error: std::io::Error, },
     ParseCert { file: PathBuf, error: std::io::Error, },
-    InvalidCertCount { file: PathBuf, count: usize, },
     InvalidAddress { address: String, error: Box<dyn std::error::Error + Send + Sync + 'static>, },
     TlsConfig(tonic::transport::Error),
     Connect { address: String, error: tonic::transport::Error, }
@@ -36,7 +35,6 @@ impl fmt::Display for ConnectError {
         match &self.internal {
             ReadFile { file, .. } => write!(f, "failed to read file {}", file.display()),
             ParseCert { file, .. } => write!(f, "failed to parse certificate {}", file.display()),
-            InvalidCertCount { file, count } => write!(f, "invalid number of certificates in file {}, expected one, found {}", file.display(), count),
             InvalidAddress { address, .. } => write!(f, "invalid address {}", address),
             TlsConfig(_) => write!(f, "failed to configure TLS"),
             Connect { address, .. } => write!(f, "failed to connect to {}", address),
@@ -51,7 +49,6 @@ impl std::error::Error for ConnectError {
         match &self.internal {
             ReadFile { error, .. } => Some(error),
             ParseCert { error, .. } => Some(error),
-            InvalidCertCount { .. } => None,
             InvalidAddress { error, .. } => Some(&**error),
             TlsConfig(error) => Some(error),
             Connect { error, .. } => Some(error),

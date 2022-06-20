@@ -165,7 +165,7 @@ mod tls {
     }
 
     pub(crate) struct CertVerifier {
-        cert: Vec<u8>,
+        certs: Vec<Vec<u8>>
     }
 
     impl CertVerifier {
@@ -174,27 +174,36 @@ mod tls {
                 |error| InternalConnectError::ReadFile { file: path.into(), error });
             let mut reader = &*contents;
 
-            let mut certs = try_map_err!(rustls_pemfile::certs(&mut reader),
+            let certs = try_map_err!(rustls_pemfile::certs(&mut reader),
                 |error| InternalConnectError::ParseCert { file: path.into(), error });
 
-            if certs.len() != 1 {
-                return Err(InternalConnectError::InvalidCertCount { file: path.into(), count: certs.len(), });
+            #[cfg(feature = "tracing")] {
+                tracing::debug!("Certificates loaded (Count: {})", certs.len());
             }
 
             Ok(CertVerifier {
-                cert: certs.swap_remove(0),
+                certs: certs,
             })
         }
     }
 
     impl rustls::ServerCertVerifier for CertVerifier {
         fn verify_server_cert(&self, _roots: &RootCertStore, presented_certs: &[Certificate], _dns_name: DNSNameRef<'_>, _ocsp_response: &[u8]) -> Result<ServerCertVerified, TLSError> {
-            if presented_certs.len() != 1 {
-                return Err(TLSError::General(format!("server sent {} certificates, expected one", presented_certs.len())));
+            
+            if self.certs.len() != presented_certs.len() {
+                return Err(TLSError::General(format!("Mismatched number of certificates (Expected: {}, Presented: {})", self.certs.len(), presented_certs.len())));
             }
-            if presented_certs[0].0 != self.cert {
-                return Err(TLSError::General(format!("server certificates doesn't match ours")));
+            
+            for (c, p) in self.certs.iter().zip(presented_certs.iter()) {
+                if *p.0 != **c {
+                    return Err(TLSError::General(format!("Server certificates do not match ours")));
+                } else {
+                    #[cfg(feature = "tracing")] {
+                        tracing::trace!("Confirmed certificate match");
+                    }
+                }
             }
+
             Ok(ServerCertVerified::assertion())
         }
     }
