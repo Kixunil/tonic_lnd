@@ -69,6 +69,9 @@ use std::convert::TryInto;
 pub use error::ConnectError;
 use error::InternalConnectError;
 
+#[cfg(feature = "tracing")]
+use tracing;
+
 /// The client returned by `connect` function
 ///
 /// This is a convenience type which you most likely want to use instead of raw client.
@@ -129,7 +132,8 @@ async fn load_macaroon(path: impl AsRef<Path> + Into<PathBuf>) -> Result<String,
 ///
 /// If you have a motivating use case for use of direct data feel free to open an issue and
 /// explain.
-pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) -> Result<Client, ConnectError> where A: TryInto<tonic::transport::Endpoint> + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static, CP: AsRef<Path> + Into<PathBuf>, MP: AsRef<Path> + Into<PathBuf> {
+#[cfg_attr(feature = "tracing", tracing::instrument(name = "Connecting to LND"))]
+pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) -> Result<Client, ConnectError> where A: TryInto<tonic::transport::Endpoint> + std::fmt::Debug + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static, CP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug, MP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug {
     let address_str = address.to_string();
     let conn = try_map_err!(address
         .try_into(), |error| InternalConnectError::InvalidAddress { address: address_str.clone(), error: Box::new(error), })
