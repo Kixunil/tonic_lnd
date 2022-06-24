@@ -9,15 +9,15 @@ Review it before using with mainnet funds!**
 
 This crate implements LND GRPC using [`tonic`](https://docs.rs/tonic/) and [`prost`](https://docs.rs/prost/).
 Apart from being up-to-date at the time of writing (:D) it also allows `async` usage.
-It contains vendored `rpc.proto` file so LND source code is not *required*
-but accepts an environment variable `LND_REPO_DIR` which overrides the vendored `rpc.proto` file.
+It contains vendored `lightning.proto` file so LND source code is not *required*
+but accepts an environment variable `LND_REPO_DIR` which overrides the vendored `lightning.proto` file.
 This can be used to test new features in non-released `lnd`.
 (Actually, the motivating project using this library is that case. :))
 
 ## Usage
 
 There's no setup needed beyond adding the crate to your `Cargo.toml`.
-If you need to change the `rpc.proto` input set the environment variable `LND_REPO_DIR` to the directory with cloned `lnd` during build.
+If you need to change the `lightning.proto` input set the environment variable `LND_REPO_DIR` to the directory with cloned `lnd` during build.
 
 Here's an example of retrieving information from LND (`getinfo` call).
 You can find the same example in crate root for your convenience.
