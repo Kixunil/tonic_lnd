@@ -12,7 +12,7 @@ Apart from being up-to-date at the time of writing (:D) it also allows `async` u
 It contains vendored `lightning.proto` file so LND source code is not *required*
 but accepts an environment variable `LND_REPO_DIR` which overrides the vendored `lightning.proto` file.
 This can be used to test new features in non-released `lnd`.
-(Actually, the motivating project using this library is that case. :))
+(Actually, the motivating project using this library was that case. :))
 
 ## Usage
 
@@ -54,7 +54,7 @@ async fn main() {
 
 ## MSRV
 
-Undetermined yet, please make suggestions.
+1.48.0
 
 ## License
 
