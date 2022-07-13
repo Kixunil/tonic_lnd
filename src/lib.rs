@@ -43,7 +43,7 @@ async fn main() {
         .into_string()
         .expect("macaroon_file is not UTF-8");
 
-    // Connecting to LND requires only address, cert file, and macaroon file
+    // Connecting to LND requires only host, port, cert file, and macaroon file
     let mut client = tonic_openssl_lnd::connect(host, port, cert_file, macaroon_file)
         .await
         .expect("failed to connect");
