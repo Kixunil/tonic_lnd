@@ -9,7 +9,7 @@ fn main() -> std::io::Result<()> {
             lnd_rpc_dir.push("lnrpc");
             lnd_rpc_dir_owned = lnd_rpc_dir;
             &*lnd_rpc_dir_owned
-        },
+        }
         None => Path::new("vendor"),
     };
 
@@ -19,6 +19,5 @@ fn main() -> std::io::Result<()> {
     tonic_build::configure()
         .build_client(true)
         .build_server(false)
-        .format(false)
         .compile(&[&*lnd_rpc_proto_file], &[dir])
 }
