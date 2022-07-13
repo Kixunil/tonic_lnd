@@ -16,8 +16,7 @@ If you need to change the `rpc.proto` input set the environment variable `LND_RE
 Here's an example of retrieving information from LND (`getinfo` call).
 You can find the same example in crate root for your convenience.
 ```rust
-// This program accepts three arguments: host, port, cert file, macaroon file
-// The address must start with `https://`!
+// This program accepts four arguments: host, port, cert file, macaroon file
 #[tokio::main]
 async fn main() {
     let mut args = std::env::args_os();

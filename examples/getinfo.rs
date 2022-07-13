@@ -1,5 +1,4 @@
-// This program accepts three arguments: host, port, cert file, macaroon file
-// The address must start with `https://`!
+// This program accepts four arguments: host, port, cert file, macaroon file
 
 #[tokio::main]
 async fn main() {
