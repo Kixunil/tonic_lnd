@@ -7,7 +7,7 @@ description = "An async library implementing LND RPC via tonic_openssl and prost
 homepage = "https://github.com/yzernik/tonic_openssl_lnd"
 repository = "https://github.com/yzernik/tonic_openssl_lnd"
 readme = "README.md"
-keywords = ["LND", "rpc", "grpc", "tonic", "tonic_openssl", "async"]
+keywords = ["LND", "rpc", "grpc", "tonic", "async"]
 categories = ["api-bindings", "asynchronous", "cryptography::cryptocurrencies", "network-programming"]
 license = "MITNFA"
 
