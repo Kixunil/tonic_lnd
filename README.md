@@ -30,13 +30,29 @@ You can find the same example in crate root for your convenience.
 async fn main() {
     let mut args = std::env::args_os();
     args.next().expect("not even zeroth arg given");
-    let address = args.next().expect("missing arguments: address, cert file, macaroon file");
-    let cert_file = args.next().expect("missing arguments: cert file, macaroon file");
+    let host = args
+        .next()
+        .expect("missing arguments: host, port, cert file, macaroon file");
+    let port = args
+        .next()
+        .expect("missing arguments: port, cert file, macaroon file");
+    let cert_file = args
+        .next()
+        .expect("missing arguments: cert file, macaroon file");
     let macaroon_file = args.next().expect("missing argument: macaroon file");
-    let address = address.into_string().expect("address is not UTF-8");
+    let host: String = host.into_string().expect("host is not UTF-8");
+    let port: u32 = port
+        .into_string()
+        .expect("port is not UTF-8")
+        .parse()
+        .expect("port is not u32");
+    let cert_file: String = cert_file.into_string().expect("cert_file is not UTF-8");
+    let macaroon_file: String = macaroon_file
+        .into_string()
+        .expect("macaroon_file is not UTF-8");
 
-    // Connecting to LND requires only address, cert file, and macaroon file
-    let mut client = tonic_openssl_lnd::connect(address, cert_file, macaroon_file)
+    // Connecting to LND requires only host, port, cert file, macaroon file
+    let mut client = tonic_openssl_lnd::connect(host, port, cert_file, macaroon_file)
         .await
         .expect("failed to connect");
 
