@@ -1,42 +1,51 @@
 // include_str! is not supported in attributes yet
 #![doc = r###"
-Rust implementation of LND RPC client using async GRPC library `tonic`.
-
+Rust implementation of LND RPC client using async GRPC library `tonic-openssl`.
 ## About
-
 **Warning: this crate is in early development and may have unknown problems!
 Review it before using with mainnet funds!**
-
 This crate implements LND GRPC using [`tonic`](https://docs.rs/tonic/) and [`prost`](https://docs.rs/prost/).
 Apart from being up-to-date at the time of writing (:D) it also allows `aync` usage.
 It contains vendored `rpc.proto` file so LND source code is not *required*
 but accepts an environment variable `LND_REPO_DIR` which overrides the vendored `rpc.proto` file.
 This can be used to test new features in non-released `lnd`.
 (Actually, the motivating project using this library is that case. :))
-
 ## Usage
-
 There's no setup needed beyond adding the crate to your `Cargo.toml`.
 If you need to change the `rpc.proto` input set the environment variable `LND_REPO_DIR` to the directory with cloned `lnd` during build.
-
 Here's an example of retrieving information from LND (`getinfo` call).
 You can find the same example in crate root for your convenience.
 
 ```no_run
-// This program accepts three arguments: address, cert file, macaroon file
+// This program accepts three arguments: host, port, cert file, macaroon file
 // The address must start with `https://`!
-
 #[tokio::main]
 async fn main() {
     let mut args = std::env::args_os();
     args.next().expect("not even zeroth arg given");
-    let address = args.next().expect("missing arguments: address, cert file, macaroon file");
-    let cert_file = args.next().expect("missing arguments: cert file, macaroon file");
+    let host = args
+        .next()
+        .expect("missing arguments: host, port, cert file, macaroon file");
+    let port = args
+        .next()
+        .expect("missing arguments: port, cert file, macaroon file");
+    let cert_file = args
+        .next()
+        .expect("missing arguments: cert file, macaroon file");
     let macaroon_file = args.next().expect("missing argument: macaroon file");
-    let address = address.into_string().expect("address is not UTF-8");
+    let host: String = host.into_string().expect("host is not UTF-8");
+    let port: u32 = port
+        .into_string()
+        .expect("port is not UTF-8")
+        .parse()
+        .expect("port is not u32");
+    let cert_file: String = cert_file.into_string().expect("cert_file is not UTF-8");
+    let macaroon_file: String = macaroon_file
+        .into_string()
+        .expect("macaroon_file is not UTF-8");
 
     // Connecting to LND requires only address, cert file, and macaroon file
-    let mut client = tonic_lnd::connect(address, cert_file, macaroon_file)
+    let mut client = tonic_lnd::connect(host, port, cert_file, macaroon_file)
         .await
         .expect("failed to connect");
 
@@ -52,44 +61,48 @@ async fn main() {
     println!("{:#?}", info);
 }
 ```
-
 ## MSRV
-
 Undetermined yet, please make suggestions.
-
 ## License
-
 MITNFA
 "###]
 
-/// This is part of public interface so it's re-exported.
-pub extern crate tonic;
-
-use std::path::{Path, PathBuf};
-use std::convert::TryInto;
-pub use error::ConnectError;
 use error::InternalConnectError;
+use hyper::client::connect::HttpConnector;
+use hyper::{client::ResponseFuture, Body, Client, Request, Response, Uri};
+use hyper_openssl::HttpsConnector;
+use openssl::{
+    ssl::{SslConnector, SslMethod},
+    x509::X509,
+};
+use std::path::{Path, PathBuf};
+use std::{error::Error, task::Poll};
+use tonic::body::BoxBody;
 use tonic::codegen::InterceptedService;
-use tonic::transport::Channel;
+use tonic_openssl::ALPN_H2_WIRE;
+use tower::Service;
 
 #[cfg(feature = "tracing")]
 use tracing;
 
 /// Convenience type alias for lightning client.
-pub type LightningClient = lnrpc::lightning_client::LightningClient<InterceptedService<Channel, MacaroonInterceptor>>;
+pub type LightningClient =
+    lnrpc::lightning_client::LightningClient<InterceptedService<MyChannel, MacaroonInterceptor>>;
 
 /// Convenience type alias for wallet client.
-pub type WalletKitClient = walletrpc::wallet_kit_client::WalletKitClient<InterceptedService<Channel, MacaroonInterceptor>>;
+pub type WalletKitClient = walletrpc::wallet_kit_client::WalletKitClient<
+    InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
 
 /// The client returned by `connect` function
 ///
 /// This is a convenience type which you most likely want to use instead of raw client.
-pub struct Client {
+pub struct LndClient {
     lightning: LightningClient,
     wallet: WalletKitClient,
 }
 
-impl Client {
+impl LndClient {
     /// Returns the lightning client.
     pub fn lightning(&mut self) -> &mut LightningClient {
         &mut self.lightning
@@ -101,24 +114,11 @@ impl Client {
     }
 }
 
-/// [`tonic::Status`] is re-exported as `Error` for convenience.
-pub type Error = tonic::Status;
-
 mod error;
 
-macro_rules! try_map_err {
-    ($result:expr, $mapfn:expr) => {
-        match $result {
-            Ok(value) => value,
-            Err(error) => return Err($mapfn(error).into()),
-        }
-    }
-}
+/// [`tonic::Status`] is re-exported as `Error` for convenience.
+pub type LndClientError = tonic::Status;
 
-/// Messages and other types generated by `tonic`/`prost`
-///
-/// This is the go-to module you will need to look in to find documentation on various message
-/// types. However it may be better to start from methods on the [`LightningClient`](lnrpc::lightning_client::LightningClient) type.
 pub mod lnrpc {
     tonic::include_proto!("lnrpc");
 }
@@ -138,109 +138,118 @@ pub struct MacaroonInterceptor {
 }
 
 impl tonic::service::Interceptor for MacaroonInterceptor {
-    fn call(&mut self, mut request: tonic::Request<()>) -> Result<tonic::Request<()>, Error> {
-        request
-            .metadata_mut()
-            .insert("macaroon", tonic::metadata::MetadataValue::from_str(&self.macaroon).expect("hex produced non-ascii"));
+    fn call(
+        &mut self,
+        mut request: tonic::Request<()>,
+    ) -> Result<tonic::Request<()>, LndClientError> {
+        request.metadata_mut().insert(
+            "macaroon",
+            #[allow(deprecated)]
+            tonic::metadata::MetadataValue::from_str(&self.macaroon)
+                .expect("hex produced non-ascii"),
+        );
         Ok(request)
     }
 }
 
-async fn load_macaroon(path: impl AsRef<Path> + Into<PathBuf>) -> Result<String, InternalConnectError> {
-    let macaroon = tokio::fs::read(&path)
-        .await
-        .map_err(|error| InternalConnectError::ReadFile { file: path.into(), error, })?;
+async fn load_macaroon(
+    path: impl AsRef<Path> + Into<PathBuf>,
+) -> Result<String, InternalConnectError> {
+    let macaroon =
+        tokio::fs::read(&path)
+            .await
+            .map_err(|error| InternalConnectError::ReadFile {
+                file: path.into(),
+                error,
+            })?;
     Ok(hex::encode(&macaroon))
 }
 
-/// Connects to LND using given address and credentials
-///
-/// This function does all required processing of the cert file and macaroon file, so that you
-/// don't have to. The address must begin with "https://", though.
-///
-/// This is considered the recommended way to connect to LND. An alternative function to use
-/// already-read certificate or macaroon data is currently **not** provided to discourage such use.
-/// LND occasionally changes that data which would lead to errors and in turn in worse application.
-///
-/// If you have a motivating use case for use of direct data feel free to open an issue and
-/// explain.
-#[cfg_attr(feature = "tracing", tracing::instrument(name = "Connecting to LND"))]
-pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) -> Result<Client, ConnectError> where A: TryInto<tonic::transport::Endpoint> + std::fmt::Debug + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static, CP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug, MP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug {
-    let address_str = address.to_string();
-    let conn = try_map_err!(address
-        .try_into(), |error| InternalConnectError::InvalidAddress { address: address_str.clone(), error: Box::new(error), })
-        .tls_config(tls::config(cert_file).await?)
-        .map_err(InternalConnectError::TlsConfig)?
-        .connect()
-        .await
-        .map_err(|error| InternalConnectError::Connect { address: address_str, error, })?;
+pub async fn connect(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndClient, Box<dyn std::error::Error>> {
+    let lnd_address = format!("https://{}:{}", lnd_host, lnd_port).to_string();
 
-    let macaroon = load_macaroon(macaroon_file).await?;
+    let pem = tokio::fs::read(lnd_tls_cert_path).await.ok();
+    let uri = lnd_address.parse::<Uri>().unwrap();
+    let channel = MyChannel::new(pem, uri).await?;
 
-    let interceptor = MacaroonInterceptor { macaroon, };
+    let macaroon = load_macaroon(lnd_macaroon_path).await.unwrap();
+    let interceptor = MacaroonInterceptor { macaroon };
 
-    let client = Client {
-        lightning: lnrpc::lightning_client::LightningClient::with_interceptor(conn.clone(), interceptor.clone()),
-        wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn, interceptor)
+    let client = LndClient {
+        lightning: lnrpc::lightning_client::LightningClient::with_interceptor(
+            channel.clone(),
+            interceptor.clone(),
+        ),
+        wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(
+            channel.clone(),
+            interceptor,
+        ),
     };
+
     Ok(client)
 }
 
-mod tls {
-    use std::path::{Path, PathBuf};
-    use rustls::{RootCertStore, Certificate, TLSError, ServerCertVerified};
-    use webpki::DNSNameRef;
-    use crate::error::{ConnectError, InternalConnectError};
+#[derive(Clone)]
+pub struct MyChannel {
+    uri: Uri,
+    client: MyClient,
+}
 
-    pub(crate) async fn config(path: impl AsRef<Path> + Into<PathBuf>) -> Result<tonic::transport::ClientTlsConfig, ConnectError> {
-        let mut tls_config = rustls::ClientConfig::new();
-        tls_config.dangerous().set_certificate_verifier(std::sync::Arc::new(CertVerifier::load(path).await?));
-        tls_config.set_protocols(&["h2".into()]);
-        Ok(tonic::transport::ClientTlsConfig::new()
-            .rustls_client_config(tls_config))
+#[derive(Clone)]
+enum MyClient {
+    ClearText(Client<HttpConnector, BoxBody>),
+    Tls(Client<HttpsConnector<HttpConnector>, BoxBody>),
+}
+
+impl MyChannel {
+    pub async fn new(certificate: Option<Vec<u8>>, uri: Uri) -> Result<Self, Box<dyn Error>> {
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        let client = match certificate {
+            None => MyClient::ClearText(Client::builder().http2_only(true).build(http)),
+            Some(pem) => {
+                let ca = X509::from_pem(&pem[..])?;
+                let mut connector = SslConnector::builder(SslMethod::tls())?;
+                connector.cert_store_mut().add_cert(ca)?;
+                connector.set_alpn_protos(ALPN_H2_WIRE)?;
+                let mut https = HttpsConnector::with_connector(http, connector)?;
+                https.set_callback(|c, _| {
+                    c.set_verify_hostname(false);
+                    Ok(())
+                });
+                MyClient::Tls(Client::builder().http2_only(true).build(https))
+            }
+        };
+
+        Ok(Self { client, uri })
+    }
+}
+
+impl Service<Request<BoxBody>> for MyChannel {
+    type Response = Response<Body>;
+    type Error = hyper::Error;
+    type Future = ResponseFuture;
+
+    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Ok(()).into()
     }
 
-    pub(crate) struct CertVerifier {
-        certs: Vec<Vec<u8>>
-    }
-
-    impl CertVerifier {
-        pub(crate) async fn load(path: impl AsRef<Path> + Into<PathBuf>) -> Result<Self, InternalConnectError> {
-            let contents = try_map_err!(tokio::fs::read(&path).await,
-                |error| InternalConnectError::ReadFile { file: path.into(), error });
-            let mut reader = &*contents;
-
-            let certs = try_map_err!(rustls_pemfile::certs(&mut reader),
-                |error| InternalConnectError::ParseCert { file: path.into(), error });
-
-            #[cfg(feature = "tracing")] {
-                tracing::debug!("Certificates loaded (Count: {})", certs.len());
-            }
-
-            Ok(CertVerifier {
-                certs: certs,
-            })
-        }
-    }
-
-    impl rustls::ServerCertVerifier for CertVerifier {
-        fn verify_server_cert(&self, _roots: &RootCertStore, presented_certs: &[Certificate], _dns_name: DNSNameRef<'_>, _ocsp_response: &[u8]) -> Result<ServerCertVerified, TLSError> {
-            
-            if self.certs.len() != presented_certs.len() {
-                return Err(TLSError::General(format!("Mismatched number of certificates (Expected: {}, Presented: {})", self.certs.len(), presented_certs.len())));
-            }
-            
-            for (c, p) in self.certs.iter().zip(presented_certs.iter()) {
-                if *p.0 != **c {
-                    return Err(TLSError::General(format!("Server certificates do not match ours")));
-                } else {
-                    #[cfg(feature = "tracing")] {
-                        tracing::trace!("Confirmed certificate match");
-                    }
-                }
-            }
-
-            Ok(ServerCertVerified::assertion())
+    fn call(&mut self, mut req: Request<BoxBody>) -> Self::Future {
+        let uri = Uri::builder()
+            .scheme(self.uri.scheme().unwrap().clone())
+            .authority(self.uri.authority().unwrap().clone())
+            .path_and_query(req.uri().path_and_query().unwrap().clone())
+            .build()
+            .unwrap();
+        *req.uri_mut() = uri;
+        match &self.client {
+            MyClient::ClearText(client) => client.request(req),
+            MyClient::Tls(client) => client.request(req),
         }
     }
 }
