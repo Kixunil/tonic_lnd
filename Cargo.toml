@@ -1,7 +1,7 @@
 [package]
 name = "tonic_openssl_lnd"
 version = "0.1.0"
-authors = ["Jonathan Zernik <yzernik@gmail.com>"]
+authors = ["Martin Habovstiak <martin.habovstiak@gmail.com>", "Jonathan Zernik <yzernik@gmail.com>"]
 edition = "2018"
 description = "An async library implementing LND RPC via tonic_openssl and prost"
 homepage = "https://github.com/yzernik/tonic_openssl_lnd"
