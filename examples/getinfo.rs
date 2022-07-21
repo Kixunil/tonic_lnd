@@ -1,3 +1,6 @@
+// This example only fetches and prints the node info to the standard output similarly to
+// `lncli getinfo`.
+//
 // This program accepts three arguments: address, cert file, macaroon file
 // The address must start with `https://`!
 
