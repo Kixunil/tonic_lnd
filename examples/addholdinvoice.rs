@@ -1,4 +1,3 @@
-// This program connects to LND and prints out all incoming invoices as they settle.
 // This program accepts four arguments: host, port, cert file, macaroon file
 
 #[tokio::main]
@@ -26,30 +25,21 @@ async fn main() {
         .into_string()
         .expect("macaroon_file is not UTF-8");
 
-    // Connecting to LND requires only address, cert file, and macaroon file
-    let mut client = tonic_lnd::connect_lightning(host, port, cert_file, macaroon_file)
+    // Connecting to LND requires only host, port, cert file, macaroon file
+    let mut invoices_client = tonic_lnd::connect_invoices(host, port, cert_file, macaroon_file)
         .await
         .expect("failed to connect");
 
-    let mut invoice_stream = client
-        .subscribe_invoices(tonic_lnd::lnrpc::InvoiceSubscription {
-            add_index: 0,
-            settle_index: 0,
+    let add_hold_invoice_resp = invoices_client
+        .add_hold_invoice(tonic_lnd::invoicesrpc::AddHoldInvoiceRequest {
+            hash: vec![0; 32],
+            value: 5555,
+            ..Default::default()
         })
         .await
-        .expect("Failed to call subscribe_invoices")
-        .into_inner();
+        .expect("failed to add hold invoice");
 
-    while let Some(invoice) = invoice_stream
-        .message()
-        .await
-        .expect("Failed to receive invoices")
-    {
-        if let Some(state) = tonic_lnd::lnrpc::invoice::InvoiceState::from_i32(invoice.state) {
-            // If this invoice was Settled we can do something with it
-            if state == tonic_lnd::lnrpc::invoice::InvoiceState::Settled {
-                println!("{:?}", invoice);
-            }
-        }
-    }
+    // We only print it here, note that in real-life code you may want to call `.into_inner()` on
+    // the response to get the message.
+    println!("{:#?}", add_hold_invoice_resp);
 }
