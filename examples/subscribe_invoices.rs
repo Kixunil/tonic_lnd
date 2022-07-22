@@ -27,12 +27,12 @@ async fn main() {
         .expect("macaroon_file is not UTF-8");
 
     // Connecting to LND requires only address, cert file, and macaroon file
-    let mut client = tonic_openssl_lnd::connect_lightning(host, port, cert_file, macaroon_file)
+    let mut client = tonic_lnd::connect_lightning(host, port, cert_file, macaroon_file)
         .await
         .expect("failed to connect");
 
     let mut invoice_stream = client
-        .subscribe_invoices(tonic_openssl_lnd::lnrpc::InvoiceSubscription {
+        .subscribe_invoices(tonic_lnd::lnrpc::InvoiceSubscription {
             add_index: 0,
             settle_index: 0,
         })
@@ -45,11 +45,9 @@ async fn main() {
         .await
         .expect("Failed to receive invoices")
     {
-        if let Some(state) =
-            tonic_openssl_lnd::lnrpc::invoice::InvoiceState::from_i32(invoice.state)
-        {
+        if let Some(state) = tonic_lnd::lnrpc::invoice::InvoiceState::from_i32(invoice.state) {
             // If this invoice was Settled we can do something with it
-            if state == tonic_openssl_lnd::lnrpc::invoice::InvoiceState::Settled {
+            if state == tonic_lnd::lnrpc::invoice::InvoiceState::Settled {
                 println!("{:?}", invoice);
             }
         }

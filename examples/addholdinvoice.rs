@@ -26,13 +26,12 @@ async fn main() {
         .expect("macaroon_file is not UTF-8");
 
     // Connecting to LND requires only host, port, cert file, macaroon file
-    let mut invoices_client =
-        tonic_openssl_lnd::connect_invoices(host, port, cert_file, macaroon_file)
-            .await
-            .expect("failed to connect");
+    let mut invoices_client = tonic_lnd::connect_invoices(host, port, cert_file, macaroon_file)
+        .await
+        .expect("failed to connect");
 
     let add_hold_invoice_resp = invoices_client
-        .add_hold_invoice(tonic_openssl_lnd::invoicesrpc::AddHoldInvoiceRequest {
+        .add_hold_invoice(tonic_lnd::invoicesrpc::AddHoldInvoiceRequest {
             hash: vec![0; 32],
             value: 5555,
             ..Default::default()

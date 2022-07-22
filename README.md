@@ -51,13 +51,13 @@ async fn main() {
         .expect("macaroon_file is not UTF-8");
 
     // Connecting to LND requires only host, port, cert file, macaroon file
-    let mut client = tonic_openssl_lnd::connect_lightning(host, port, cert_file, macaroon_file)
+    let mut client = tonic_lnd::connect_lightning(host, port, cert_file, macaroon_file)
         .await
         .expect("failed to connect");
 
     let info = client
         // All calls require at least empty parameter
-        .get_info(tonic_openssl_lnd::lnrpc::GetInfoRequest {})
+        .get_info(tonic_lnd::lnrpc::GetInfoRequest {})
         .await
         .expect("failed to get info");
 
