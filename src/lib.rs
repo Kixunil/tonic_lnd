@@ -42,14 +42,14 @@ async fn main() {
         .into_string()
         .expect("macaroon_file is not UTF-8");
 
-    // Connecting to LND requires only host, port, cert file, and macaroon file
-    let mut client = tonic_openssl_lnd::connect(host, port, cert_file, macaroon_file)
+    // Connecting to LND requires only host, port, cert file, macaroon file
+    let mut client = tonic_openssl_lnd::connect_lightning(host, port, cert_file, macaroon_file)
         .await
         .expect("failed to connect");
 
     let info = client
         // All calls require at least empty parameter
-        .get_info(tonic_openssl_lnd::rpc::GetInfoRequest {})
+        .get_info(tonic_openssl_lnd::lnrpc::GetInfoRequest {})
         .await
         .expect("failed to get info");
 
@@ -78,15 +78,114 @@ use tonic::body::BoxBody;
 use tonic_openssl::ALPN_H2_WIRE;
 use tower::Service;
 
-pub mod rpc {
+pub mod autopilotrpc {
+    tonic::include_proto!("autopilotrpc");
+}
+
+pub mod chainrpc {
+    tonic::include_proto!("chainrpc");
+}
+
+pub mod devrpc {
+    tonic::include_proto!("devrpc");
+}
+
+pub mod invoicesrpc {
+    tonic::include_proto!("invoicesrpc");
+}
+
+pub mod lnrpc {
     tonic::include_proto!("lnrpc");
 }
 
-/// [`tonic::Status`] is re-exported as `Error` for convenience.
+pub mod lnclipb {
+    tonic::include_proto!("lnclipb");
+}
+
+pub mod neutrinorpc {
+    tonic::include_proto!("neutrinorpc");
+}
+
+pub mod peersrpc {
+    tonic::include_proto!("peersrpc");
+}
+
+pub mod routerrpc {
+    tonic::include_proto!("routerrpc");
+}
+
+pub mod signrpc {
+    tonic::include_proto!("signrpc");
+}
+
+pub mod verrpc {
+    tonic::include_proto!("verrpc");
+}
+
+pub mod walletrpc {
+    tonic::include_proto!("walletrpc");
+}
+
+pub mod watchtowerrpc {
+    tonic::include_proto!("watchtowerrpc");
+}
+
+pub mod wtclientrpc {
+    tonic::include_proto!("wtclientrpc");
+}
+
+/// [`tonic::Status`] is re-exported as `LndClientError` for convenience.
 pub type LndClientError = tonic::Status;
 
-// /// This is a convenience type which you most likely want to use instead of raw client.
-pub type LndClient = rpc::lightning_client::LightningClient<
+pub type LndAutopilotClient = crate::autopilotrpc::autopilot_client::AutopilotClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndChainClient = crate::chainrpc::chain_notifier_client::ChainNotifierClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndDevClient = crate::devrpc::dev_client::DevClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndInvoicesClient = crate::invoicesrpc::invoices_client::InvoicesClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndLightningClient = crate::lnrpc::lightning_client::LightningClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndNeutrinoClient = crate::neutrinorpc::neutrino_kit_client::NeutrinoKitClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndPeersClient = crate::peersrpc::peers_client::PeersClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndRouterClient = crate::routerrpc::router_client::RouterClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndSignerClient = crate::signrpc::signer_client::SignerClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndVersionerClient = crate::verrpc::versioner_client::VersionerClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndWalletClient = crate::walletrpc::wallet_kit_client::WalletKitClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndWatchtowerClient = crate::watchtowerrpc::watchtower_client::WatchtowerClient<
+    tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
+>;
+
+pub type LndWtcClient = crate::wtclientrpc::watchtower_client_client::WatchtowerClientClient<
     tonic::codegen::InterceptedService<MyChannel, MacaroonInterceptor>,
 >;
 
@@ -126,24 +225,203 @@ async fn load_macaroon(
     Ok(hex::encode(&macaroon))
 }
 
-pub async fn connect(
+async fn get_channel(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+) -> Result<MyChannel, Box<dyn std::error::Error>> {
+    let lnd_address = format!("https://{}:{}", lnd_host, lnd_port).to_string();
+    let pem = tokio::fs::read(lnd_tls_cert_path).await.ok();
+    let uri = lnd_address.parse::<Uri>().unwrap();
+    let channel = MyChannel::new(pem, uri).await?;
+    Ok(channel)
+}
+
+async fn get_macaroon_interceptor(
+    lnd_macaroon_path: String,
+) -> Result<MacaroonInterceptor, Box<dyn std::error::Error>> {
+    // TODO: don't use unwrap.
+    let macaroon = load_macaroon(lnd_macaroon_path).await.unwrap();
+    Ok(MacaroonInterceptor { macaroon })
+}
+
+pub async fn connect_autopilot(
     lnd_host: String,
     lnd_port: u32,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
-) -> Result<LndClient, Box<dyn std::error::Error>> {
-    let lnd_address = format!("https://{}:{}", lnd_host, lnd_port).to_string();
+) -> Result<LndAutopilotClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client = crate::autopilotrpc::autopilot_client::AutopilotClient::with_interceptor(
+        channel,
+        interceptor,
+    );
+    Ok(client)
+}
 
-    let pem = tokio::fs::read(lnd_tls_cert_path).await.ok();
-    let uri = lnd_address.parse::<Uri>().unwrap();
-    let channel = MyChannel::new(pem, uri).await?;
+pub async fn connect_chain_notifier(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndChainClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client = crate::chainrpc::chain_notifier_client::ChainNotifierClient::with_interceptor(
+        channel,
+        interceptor,
+    );
+    Ok(client)
+}
 
-    // TODO: don't use unwrap.
-    let macaroon = load_macaroon(lnd_macaroon_path).await.unwrap();
-    let interceptor = MacaroonInterceptor { macaroon };
+pub async fn connect_dev(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndDevClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client = crate::devrpc::dev_client::DevClient::with_interceptor(channel, interceptor);
+    Ok(client)
+}
 
-    let client = rpc::lightning_client::LightningClient::with_interceptor(channel, interceptor);
+pub async fn connect_invoices(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndInvoicesClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client =
+        crate::invoicesrpc::invoices_client::InvoicesClient::with_interceptor(channel, interceptor);
+    Ok(client)
+}
 
+pub async fn connect_lightning(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndLightningClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client =
+        crate::lnrpc::lightning_client::LightningClient::with_interceptor(channel, interceptor);
+    Ok(client)
+}
+
+pub async fn connect_neutrino(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndNeutrinoClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client = crate::neutrinorpc::neutrino_kit_client::NeutrinoKitClient::with_interceptor(
+        channel,
+        interceptor,
+    );
+    Ok(client)
+}
+
+pub async fn connect_peers(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndPeersClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client = crate::peersrpc::peers_client::PeersClient::with_interceptor(channel, interceptor);
+    Ok(client)
+}
+
+pub async fn connect_router(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndRouterClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client =
+        crate::routerrpc::router_client::RouterClient::with_interceptor(channel, interceptor);
+    Ok(client)
+}
+
+pub async fn connect_signer(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndSignerClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client =
+        crate::signrpc::signer_client::SignerClient::with_interceptor(channel, interceptor);
+    Ok(client)
+}
+
+pub async fn connect_versioner(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndVersionerClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client =
+        crate::verrpc::versioner_client::VersionerClient::with_interceptor(channel, interceptor);
+    Ok(client)
+}
+
+pub async fn connect_wallet(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndWalletClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client = crate::walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(
+        channel,
+        interceptor,
+    );
+    Ok(client)
+}
+
+pub async fn connect_watchtower(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndWatchtowerClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client = crate::watchtowerrpc::watchtower_client::WatchtowerClient::with_interceptor(
+        channel,
+        interceptor,
+    );
+    Ok(client)
+}
+
+pub async fn connect_wtc(
+    lnd_host: String,
+    lnd_port: u32,
+    lnd_tls_cert_path: String,
+    lnd_macaroon_path: String,
+) -> Result<LndWtcClient, Box<dyn std::error::Error>> {
+    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
+    let client =
+        crate::wtclientrpc::watchtower_client_client::WatchtowerClientClient::with_interceptor(
+            channel,
+            interceptor,
+        );
     Ok(client)
 }
 

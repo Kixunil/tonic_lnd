@@ -26,17 +26,21 @@ async fn main() {
         .expect("macaroon_file is not UTF-8");
 
     // Connecting to LND requires only host, port, cert file, macaroon file
-    let mut client = tonic_openssl_lnd::connect_lightning(host, port, cert_file, macaroon_file)
-        .await
-        .expect("failed to connect");
+    let mut invoices_client =
+        tonic_openssl_lnd::connect_invoices(host, port, cert_file, macaroon_file)
+            .await
+            .expect("failed to connect");
 
-    let info = client
-        // All calls require at least empty parameter
-        .get_info(tonic_openssl_lnd::lnrpc::GetInfoRequest {})
+    let add_hold_invoice_resp = invoices_client
+        .add_hold_invoice(tonic_openssl_lnd::invoicesrpc::AddHoldInvoiceRequest {
+            hash: vec![0; 32],
+            value: 5555,
+            ..Default::default()
+        })
         .await
-        .expect("failed to get info");
+        .expect("failed to add hold invoice");
 
     // We only print it here, note that in real-life code you may want to call `.into_inner()` on
     // the response to get the message.
-    println!("{:#?}", info);
+    println!("{:#?}", add_hold_invoice_resp);
 }
