@@ -16,34 +16,28 @@ If you need to change the `rpc.proto` input set the environment variable `LND_RE
 Here's an example of retrieving information from LND (`getinfo` call).
 You can find the same example in crate root for your convenience.
 ```rust
-// This program accepts four arguments: host, port, cert file, macaroon file
+// This program accepts three arguments: address, cert file, macaroon file
 #[tokio::main]
 async fn main() {
     let mut args = std::env::args_os();
     args.next().expect("not even zeroth arg given");
-    let host = args
+    let address = args
         .next()
-        .expect("missing arguments: host, port, cert file, macaroon file");
-    let port = args
-        .next()
-        .expect("missing arguments: port, cert file, macaroon file");
+        .expect("missing arguments: address, cert file, macaroon file");
     let cert_file = args
         .next()
-        .expect("missing arguments: cert file, macaroon file");
-    let macaroon_file = args.next().expect("missing argument: macaroon file");
-    let host: String = host.into_string().expect("host is not UTF-8");
-    let port: u32 = port
+        .expect("missing arguments: cert file, macaroon file")
         .into_string()
-        .expect("port is not UTF-8")
-        .parse()
-        .expect("port is not u32");
-    let cert_file: String = cert_file.into_string().expect("cert_file is not UTF-8");
-    let macaroon_file: String = macaroon_file
+        .expect("cert_file is not UTF-8");
+    let macaroon_file = args
+        .next()
+        .expect("missing argument: macaroon file")
         .into_string()
-        .expect("macaroon_file is not UTF-8");
+        .expect("cert_file is not UTF-8");
+    let address = address.into_string().expect("address is not UTF-8");
 
-    // Connecting to LND requires only host, port, cert file, macaroon file
-    let mut client = tonic_lnd::connect_lightning(host, port, cert_file, macaroon_file)
+    // Connecting to LND requires only address, cert file, and macaroon file
+    let mut client = tonic_lnd::connect_lightning(address, cert_file, macaroon_file)
         .await
         .expect("failed to connect");
 
@@ -226,11 +220,9 @@ async fn load_macaroon(
 }
 
 async fn get_channel(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
 ) -> Result<MyChannel, Box<dyn std::error::Error>> {
-    let lnd_address = format!("https://{}:{}", lnd_host, lnd_port).to_string();
     let pem = tokio::fs::read(lnd_tls_cert_path).await.ok();
     let uri = lnd_address.parse::<Uri>().unwrap();
     let channel = MyChannel::new(pem, uri).await?;
@@ -246,12 +238,11 @@ async fn get_macaroon_interceptor(
 }
 
 pub async fn connect_autopilot(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndAutopilotClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client = crate::autopilotrpc::autopilot_client::AutopilotClient::with_interceptor(
         channel,
@@ -261,12 +252,11 @@ pub async fn connect_autopilot(
 }
 
 pub async fn connect_chain_notifier(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndChainClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client = crate::chainrpc::chain_notifier_client::ChainNotifierClient::with_interceptor(
         channel,
@@ -276,24 +266,22 @@ pub async fn connect_chain_notifier(
 }
 
 pub async fn connect_dev(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndDevClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client = crate::devrpc::dev_client::DevClient::with_interceptor(channel, interceptor);
     Ok(client)
 }
 
 pub async fn connect_invoices(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndInvoicesClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client =
         crate::invoicesrpc::invoices_client::InvoicesClient::with_interceptor(channel, interceptor);
@@ -301,12 +289,11 @@ pub async fn connect_invoices(
 }
 
 pub async fn connect_lightning(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndLightningClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client =
         crate::lnrpc::lightning_client::LightningClient::with_interceptor(channel, interceptor);
@@ -314,12 +301,11 @@ pub async fn connect_lightning(
 }
 
 pub async fn connect_neutrino(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndNeutrinoClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client = crate::neutrinorpc::neutrino_kit_client::NeutrinoKitClient::with_interceptor(
         channel,
@@ -329,24 +315,22 @@ pub async fn connect_neutrino(
 }
 
 pub async fn connect_peers(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndPeersClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client = crate::peersrpc::peers_client::PeersClient::with_interceptor(channel, interceptor);
     Ok(client)
 }
 
 pub async fn connect_router(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndRouterClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client =
         crate::routerrpc::router_client::RouterClient::with_interceptor(channel, interceptor);
@@ -354,12 +338,11 @@ pub async fn connect_router(
 }
 
 pub async fn connect_signer(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndSignerClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client =
         crate::signrpc::signer_client::SignerClient::with_interceptor(channel, interceptor);
@@ -367,12 +350,11 @@ pub async fn connect_signer(
 }
 
 pub async fn connect_versioner(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndVersionerClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client =
         crate::verrpc::versioner_client::VersionerClient::with_interceptor(channel, interceptor);
@@ -380,12 +362,11 @@ pub async fn connect_versioner(
 }
 
 pub async fn connect_wallet(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndWalletClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client = crate::walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(
         channel,
@@ -395,12 +376,11 @@ pub async fn connect_wallet(
 }
 
 pub async fn connect_watchtower(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndWatchtowerClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client = crate::watchtowerrpc::watchtower_client::WatchtowerClient::with_interceptor(
         channel,
@@ -410,12 +390,11 @@ pub async fn connect_watchtower(
 }
 
 pub async fn connect_wtc(
-    lnd_host: String,
-    lnd_port: u32,
+    lnd_address: String,
     lnd_tls_cert_path: String,
     lnd_macaroon_path: String,
 ) -> Result<LndWtcClient, Box<dyn std::error::Error>> {
-    let channel = get_channel(lnd_host, lnd_port, lnd_tls_cert_path).await?;
+    let channel = get_channel(lnd_address, lnd_tls_cert_path).await?;
     let interceptor = get_macaroon_interceptor(lnd_macaroon_path).await?;
     let client =
         crate::wtclientrpc::watchtower_client_client::WatchtowerClientClient::with_interceptor(
