@@ -1,6 +1,3 @@
-// This example only fetches and prints the node info to the standard output similarly to
-// `lncli getinfo`.
-//
 // This program accepts three arguments: address, cert file, macaroon file
 // The address must start with `https://`!
 
@@ -23,18 +20,21 @@ async fn main() {
         .expect("cert_file is not UTF-8");
     let address = address.into_string().expect("address is not UTF-8");
 
-    // Connecting to LND requires only address, cert file, and macaroon file
-    let mut client = tonic_lnd::connect_lightning(address, cert_file, macaroon_file)
+    // Connecting to LND requires only address, cert file, macaroon file
+    let mut invoices_client = tonic_lnd::connect_invoices(address, cert_file, macaroon_file)
         .await
         .expect("failed to connect");
 
-    let info = client
-        // All calls require at least empty parameter
-        .get_info(tonic_lnd::lnrpc::GetInfoRequest {})
+    let add_hold_invoice_resp = invoices_client
+        .add_hold_invoice(tonic_lnd::invoicesrpc::AddHoldInvoiceRequest {
+            hash: vec![0; 32],
+            value: 5555,
+            ..Default::default()
+        })
         .await
-        .expect("failed to get info");
+        .expect("failed to add hold invoice");
 
     // We only print it here, note that in real-life code you may want to call `.into_inner()` on
     // the response to get the message.
-    println!("{:#?}", info);
+    println!("{:#?}", add_hold_invoice_resp);
 }
