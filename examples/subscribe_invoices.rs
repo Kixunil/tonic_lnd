@@ -1,5 +1,6 @@
 // This program connects to LND and prints out all incoming invoices as they settle.
-// This program accepts three arguments: address, cert file, macaroon file
+// The program accepts three arguments: address, cert file, macaroon file
+// The address must start with `https://`!
 
 #[tokio::main]
 async fn main() {

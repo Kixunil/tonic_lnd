@@ -2,6 +2,7 @@
 // `lncli getinfo`.
 //
 // This program accepts three arguments: address, cert file, macaroon file
+// The address must start with `https://`!
 
 #[tokio::main]
 async fn main() {
