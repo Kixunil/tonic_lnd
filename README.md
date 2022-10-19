@@ -1,25 +1,27 @@
 # Tonic LND client
 
-Rust implementation of LND RPC client using async GRPC library `tonic`.
+Rust implementation of LND RPC client using async gRPC library `tonic`.
 
 ## About
 
 **Warning: this crate is in early development and may have unknown problems!
 Review it before using with mainnet funds!**
 
+This crate supports *[Lightning](https://api.lightning.community/#service-lightning)* and *[WalletKit](https://api.lightning.community/#service-walletkit)* RPC APIs from LND [v0.15.4-beta](https://github.com/lightningnetwork/lnd/tree/v0.15.4-beta)
+
 This crate implements LND GRPC using [`tonic`](https://docs.rs/tonic/) and [`prost`](https://docs.rs/prost/).
 Apart from being up-to-date at the time of writing (:D) it also allows `async` usage.
-It contains vendored `lightning.proto` file so LND source code is not *required*
-but accepts an environment variable `LND_REPO_DIR` which overrides the vendored `lightning.proto` file.
+It contains vendored `*.proto` files so LND source code is not *required*
+but accepts an environment variable `LND_REPO_DIR` which overrides the vendored `*.proto` files.
 This can be used to test new features in non-released `lnd`.
 (Actually, the motivating project using this library was that case. :))
 
 ## Usage
 
 There's no setup needed beyond adding the crate to your `Cargo.toml`.
-If you need to change the `lightning.proto` input set the environment variable `LND_REPO_DIR` to the directory with cloned `lnd` during build.
+If you need to change the `*.proto` files from which the client is generated, set the environment variable `LND_REPO_DIR` to a directory with cloned [`lnd`](https://github.com/lightningnetwork/lnd.git) during build.
 
-Here's an example of retrieving information from LND (`getinfo` call).
+Here's an example of retrieving information from LND (`[getinfo](https://api.lightning.community/#getinfo)` call).
 You can find the same example in crate root for your convenience.
 
 ```rust
@@ -41,6 +43,7 @@ async fn main() {
         .expect("failed to connect");
 
     let info = client
+        .lightning()
         // All calls require at least empty parameter
         .get_info(tonic_lnd::rpc::GetInfoRequest {})
         .await

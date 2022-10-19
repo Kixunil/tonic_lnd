@@ -19,6 +19,7 @@ async fn main() {
         .expect("failed to connect");
 
     let info = client
+        .lightning()
         // All calls require at least empty parameter
         .get_info(tonic_lnd::rpc::GetInfoRequest {})
         .await

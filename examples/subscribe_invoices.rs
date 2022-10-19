@@ -21,6 +21,7 @@ async fn main() {
         .expect("failed to connect");
 
     let mut invoice_stream = client
+        .lightning()
         .subscribe_invoices(tonic_lnd::rpc::InvoiceSubscription {
             add_index: 0,
             settle_index: 0,
