@@ -21,7 +21,7 @@ async fn main() {
     let info = client
         .lightning()
         // All calls require at least empty parameter
-        .get_info(tonic_lnd::rpc::GetInfoRequest {})
+        .get_info(tonic_lnd::lnrpc::GetInfoRequest {})
         .await
         .expect("failed to get info");
 
