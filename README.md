@@ -1,5 +1,8 @@
 # Tonic LND client
 
+[![Crate](https://img.shields.io/crates/v/tonic_lnd.svg?logo=rust)]([https://crates.io/crates/lightning](https://crates.io/crates/tonic_lnd))
+[![Documentation](https://img.shields.io/static/v1?logo=read-the-docs&label=docs.rs&message=tonic_lnd&color=informational)](https://docs.rs/tonic_lnd/)
+
 Rust implementation of LND RPC client using async gRPC library `tonic`.
 
 ## About
