@@ -10,22 +10,24 @@ async fn main() {
     args.next().expect("not even zeroth arg given");
     let host = args
         .next()
-        .expect("missing arguments: host, port, cert file, macaroon file");
-    let port = args
+        .expect("missing arguments: host, port, cert file, macaroon file")
+        .into_string()
+        .expect("host is not UTF-8");
+    let port: u32 = args
         .next()
-        .expect("missing arguments: port, cert file, macaroon file");
-    let cert_file = args
-        .next()
-        .expect("missing arguments: cert file, macaroon file");
-    let macaroon_file = args.next().expect("missing argument: macaroon file");
-    let host: String = host.into_string().expect("host is not UTF-8");
-    let port: u32 = port
+        .expect("missing arguments: port, cert file, macaroon file")
         .into_string()
         .expect("port is not UTF-8")
         .parse()
         .expect("port is not u32");
-    let cert_file: String = cert_file.into_string().expect("cert_file is not UTF-8");
-    let macaroon_file: String = macaroon_file
+    let cert_file: String = args
+        .next()
+        .expect("missing arguments: cert file, macaroon file")
+        .into_string()
+        .expect("cert_file is not UTF-8");
+    let macaroon_file: String = args
+        .next()
+        .expect("missing argument: macaroon file")
         .into_string()
         .expect("macaroon_file is not UTF-8");
 
