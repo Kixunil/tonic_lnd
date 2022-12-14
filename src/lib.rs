@@ -87,11 +87,11 @@ use tracing;
 
 /// Convenience type alias for lightning client.
 pub type LightningClient =
-    lnrpc::lightning_client::LightningClient<InterceptedService<MyChannel, MacaroonInterceptor>>;
+    lnrpc::lightning_client::LightningClient<InterceptedService<SslChannel, MacaroonInterceptor>>;
 
 /// Convenience type alias for wallet client.
 pub type WalletKitClient = walletrpc::wallet_kit_client::WalletKitClient<
-    InterceptedService<MyChannel, MacaroonInterceptor>,
+    InterceptedService<SslChannel, MacaroonInterceptor>,
 >;
 
 /// The client returned by `connect` function
@@ -175,7 +175,7 @@ pub async fn connect(
 
     let pem = tokio::fs::read(lnd_tls_cert_path).await.ok();
     let uri = lnd_address.parse::<Uri>().unwrap();
-    let channel = MyChannel::new(pem, uri).await?;
+    let channel = SslChannel::new(pem, uri).await?;
 
     let macaroon = load_macaroon(lnd_macaroon_path).await.unwrap();
     let interceptor = MacaroonInterceptor { macaroon };
@@ -195,23 +195,23 @@ pub async fn connect(
 }
 
 #[derive(Clone)]
-pub struct MyChannel {
+pub struct SslChannel {
     uri: Uri,
-    client: MyClient,
+    client: SslClient,
 }
 
 #[derive(Clone)]
-enum MyClient {
+enum SslClient {
     ClearText(Client<HttpConnector, BoxBody>),
     Tls(Client<HttpsConnector<HttpConnector>, BoxBody>),
 }
 
-impl MyChannel {
+impl SslChannel {
     pub async fn new(certificate: Option<Vec<u8>>, uri: Uri) -> Result<Self, Box<dyn Error>> {
         let mut http = HttpConnector::new();
         http.enforce_http(false);
         let client = match certificate {
-            None => MyClient::ClearText(Client::builder().http2_only(true).build(http)),
+            None => SslClient::ClearText(Client::builder().http2_only(true).build(http)),
             Some(pem) => {
                 let ca = X509::from_pem(&pem[..])?;
                 let mut connector = SslConnector::builder(SslMethod::tls())?;
@@ -222,7 +222,7 @@ impl MyChannel {
                     c.set_verify_hostname(false);
                     Ok(())
                 });
-                MyClient::Tls(Client::builder().http2_only(true).build(https))
+                SslClient::Tls(Client::builder().http2_only(true).build(https))
             }
         };
 
@@ -230,7 +230,7 @@ impl MyChannel {
     }
 }
 
-impl Service<Request<BoxBody>> for MyChannel {
+impl Service<Request<BoxBody>> for SslChannel {
     type Response = Response<Body>;
     type Error = hyper::Error;
     type Future = ResponseFuture;
@@ -248,8 +248,8 @@ impl Service<Request<BoxBody>> for MyChannel {
             .unwrap();
         *req.uri_mut() = uri;
         match &self.client {
-            MyClient::ClearText(client) => client.request(req),
-            MyClient::Tls(client) => client.request(req),
+            SslClient::ClearText(client) => client.request(req),
+            SslClient::Tls(client) => client.request(req),
         }
     }
 }
