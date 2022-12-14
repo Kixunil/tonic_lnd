@@ -18,6 +18,7 @@ fn main() -> std::io::Result<()> {
         "signrpc/signer.proto",
         "walletrpc/walletkit.proto",
         "lightning.proto",
+        "router.proto",
     ];
 
     let proto_paths: Vec<_> = protos
