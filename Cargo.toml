@@ -15,7 +15,8 @@ license = "MITNFA"
 lightningrpc = []
 signrpc = []
 walletrpc = ["signrpc"]
-all = ["lightningrpc", "walletrpc"]
+routerrpc = ["lightningrpc"]
+all = ["lightningrpc", "walletrpc", "routerrpc"]
 
 [dependencies]
 tonic = { version = "0.6.2", features = ["transport", "tls"] }
