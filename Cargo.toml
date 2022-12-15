@@ -26,6 +26,7 @@ webpki = "0.21.3"
 rustls-pemfile = "1.0.0"
 hex = "0.4.3"
 tokio = { version = "1.7.1", features = ["fs"] }
+tokio-stream = { version = "0.1", features = ["net"] }
 tracing = { version = "0.1", features = ["log"], optional = true }
 
 [build-dependencies]
