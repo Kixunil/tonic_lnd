@@ -186,6 +186,29 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
     Ok(client)
 }
 
+/// Connects to LND using in-memory cert and macaroon (not file paths)
+/// cert is a PEM encoded string
+/// macaroon is a hex-encoded string
+#[cfg_attr(feature = "tracing", tracing::instrument(name = "Connecting to LND"))]
+pub async fn connect_from_memory<A, CP, MP>(address: A, cert_pem: &str, macaroon: &str) -> Result<Client, ConnectError> where A: TryInto<tonic::transport::Endpoint> + std::fmt::Debug + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static {
+    let address_str = address.to_string();
+    let conn = try_map_err!(address
+        .try_into(), |error| InternalConnectError::InvalidAddress { address: address_str.clone(), error: Box::new(error), })
+        .tls_config(tls::config_from_memory(cert_pem).await?)
+        .map_err(InternalConnectError::TlsConfig)?
+        .connect()
+        .await
+        .map_err(|error| InternalConnectError::Connect { address: address_str, error, })?;
+
+    let interceptor = MacaroonInterceptor { macaroon: macaroon.to_string(), };
+
+    let client = Client {
+        lightning: lnrpc::lightning_client::LightningClient::with_interceptor(conn.clone(), interceptor.clone()),
+        wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn, interceptor)
+    };
+    Ok(client)
+}
+
 mod tls {
     use std::path::{Path, PathBuf};
     use rustls::{RootCertStore, Certificate, TLSError, ServerCertVerified};
@@ -195,6 +218,14 @@ mod tls {
     pub(crate) async fn config(path: impl AsRef<Path> + Into<PathBuf>) -> Result<tonic::transport::ClientTlsConfig, ConnectError> {
         let mut tls_config = rustls::ClientConfig::new();
         tls_config.dangerous().set_certificate_verifier(std::sync::Arc::new(CertVerifier::load(path).await?));
+        tls_config.set_protocols(&["h2".into()]);
+        Ok(tonic::transport::ClientTlsConfig::new()
+            .rustls_client_config(tls_config))
+    }
+
+    pub(crate) async fn config_from_memory(cert_pem: &str) -> Result<tonic::transport::ClientTlsConfig, ConnectError> {
+        let mut tls_config = rustls::ClientConfig::new();
+        tls_config.dangerous().set_certificate_verifier(std::sync::Arc::new(CertVerifier::load_from_memory(cert_pem).await?));
         tls_config.set_protocols(&["h2".into()]);
         Ok(tonic::transport::ClientTlsConfig::new()
             .rustls_client_config(tls_config))
@@ -212,6 +243,20 @@ mod tls {
 
             let certs = try_map_err!(rustls_pemfile::certs(&mut reader),
                 |error| InternalConnectError::ParseCert { file: path.into(), error });
+
+            #[cfg(feature = "tracing")] {
+                tracing::debug!("Certificates loaded (Count: {})", certs.len());
+            }
+
+            Ok(CertVerifier {
+                certs: certs,
+            })
+        }
+        pub(crate) async fn load_from_memory(cert_pem: &str) -> Result<Self, InternalConnectError> {
+            let mut reader = &cert_pem.as_bytes()[..];
+
+            let certs = try_map_err!(rustls_pemfile::certs(&mut reader),
+                |error| InternalConnectError::ParseCert { file: PathBuf::from(""), error });
 
             #[cfg(feature = "tracing")] {
                 tracing::debug!("Certificates loaded (Count: {})", certs.len());
