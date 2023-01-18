@@ -228,7 +228,7 @@ mod tls {
         pub(crate) async fn load(path: impl AsRef<Path> + Into<PathBuf>) -> Result<Self, InternalConnectError> {
             let contents = try_map_err!(tokio::fs::read(&path).await,
                 |error| InternalConnectError::ReadFile { file: path.into(), error });
-                Ok(CertVerifier::do_load(&contents[..]).await?)
+            Ok(CertVerifier::do_load(&contents[..]).await?)
         }
         pub(crate) async fn load_from_memory(cert_pem: &str) -> Result<Self, InternalConnectError> {
             Ok(CertVerifier::do_load(&cert_pem.as_bytes()[..]).await?)
