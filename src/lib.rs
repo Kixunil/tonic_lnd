@@ -81,6 +81,7 @@ use tonic::transport::Channel;
 use tracing;
 
 /// Convenience type alias for lightning client.
+#[cfg(feature = "lightningrpc")]
 pub type LightningClient = lnrpc::lightning_client::LightningClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 /// Convenience type alias for wallet client.
@@ -98,6 +99,7 @@ pub type SignerClient = signrpc::signer_client::SignerClient<InterceptedService<
 ///
 /// This is a convenience type which you most likely want to use instead of raw client.
 pub struct Client {
+    #[cfg(feature = "lightningrpc")]
     lightning: LightningClient,
     wallet: WalletKitClient,
     signer: SignerClient,
@@ -106,6 +108,7 @@ pub struct Client {
 
 impl Client {
     /// Returns the lightning client.
+    #[cfg(feature = "lightningrpc")]
     pub fn lightning(&mut self) -> &mut LightningClient {
         &mut self.lightning
     }
@@ -144,6 +147,7 @@ macro_rules! try_map_err {
 ///
 /// This is the go-to module you will need to look in to find documentation on various message
 /// types. However it may be better to start from methods on the [`LightningClient`](lnrpc::lightning_client::LightningClient) type.
+#[cfg(feature = "lightningrpc")]
 pub mod lnrpc {
     tonic::include_proto!("lnrpc");
 }
@@ -209,6 +213,7 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
     let interceptor = MacaroonInterceptor { macaroon, };
 
     let client = Client {
+        #[cfg(feature = "lightningrpc")]
         lightning: lnrpc::lightning_client::LightningClient::with_interceptor(conn.clone(), interceptor.clone()),
         wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn.clone(), interceptor.clone()),
         peers: peersrpc::peers_client::PeersClient::with_interceptor(
