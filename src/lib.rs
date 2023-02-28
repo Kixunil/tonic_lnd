@@ -75,6 +75,7 @@ use std::convert::TryInto;
 pub use error::ConnectError;
 use error::InternalConnectError;
 use tonic::codegen::InterceptedService;
+#[allow(unused_imports)]
 use tonic::transport::Channel;
 
 #[cfg(feature = "tracing")]
@@ -84,9 +85,10 @@ use tracing;
 #[cfg(feature = "lightningrpc")]
 pub type LightningClient = lnrpc::lightning_client::LightningClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
+
 /// Convenience type alias for wallet client.
-pub type WalletKitClient =
-    walletrpc::wallet_kit_client::WalletKitClient<InterceptedService<Channel, MacaroonInterceptor>>;
+#[cfg(feature = "walletrpc")]
+pub type WalletKitClient = walletrpc::wallet_kit_client::WalletKitClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 /// Convenience type alias for peers service client.
 pub type PeersClient =
@@ -101,6 +103,7 @@ pub type SignerClient = signrpc::signer_client::SignerClient<InterceptedService<
 pub struct Client {
     #[cfg(feature = "lightningrpc")]
     lightning: LightningClient,
+    #[cfg(feature = "walletrpc")]
     wallet: WalletKitClient,
     signer: SignerClient,
     peers: PeersClient,
@@ -114,6 +117,7 @@ impl Client {
     }
 
     /// Returns the wallet client.
+    #[cfg(feature = "walletrpc")]
     pub fn wallet(&mut self) -> &mut WalletKitClient {
         &mut self.wallet
     }
@@ -152,6 +156,7 @@ pub mod lnrpc {
     tonic::include_proto!("lnrpc");
 }
 
+#[cfg(feature = "walletrpc")]
 pub mod walletrpc {
     tonic::include_proto!("walletrpc");
 }
@@ -200,6 +205,7 @@ async fn load_macaroon(path: impl AsRef<Path> + Into<PathBuf>) -> Result<String,
 #[cfg_attr(feature = "tracing", tracing::instrument(name = "Connecting to LND"))]
 pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) -> Result<Client, ConnectError> where A: TryInto<tonic::transport::Endpoint> + std::fmt::Debug + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static, CP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug, MP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug {
     let address_str = address.to_string();
+    #[allow(unused_variables)]
     let conn = try_map_err!(address
         .try_into(), |error| InternalConnectError::InvalidAddress { address: address_str.clone(), error: Box::new(error), })
         .tls_config(tls::config(cert_file).await?)
@@ -210,12 +216,14 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
 
     let macaroon = load_macaroon(macaroon_file).await?;
 
+    #[allow(unused_variables)]
     let interceptor = MacaroonInterceptor { macaroon, };
 
     let client = Client {
         #[cfg(feature = "lightningrpc")]
         lightning: lnrpc::lightning_client::LightningClient::with_interceptor(conn.clone(), interceptor.clone()),
-        wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn.clone(), interceptor.clone()),
+        #[cfg(feature = "walletrpc")]
+        wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn, interceptor),
         peers: peersrpc::peers_client::PeersClient::with_interceptor(
             conn.clone(),
             interceptor.clone(),
