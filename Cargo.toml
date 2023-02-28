@@ -11,6 +11,11 @@ keywords = ["LND", "rpc", "grpc", "tonic", "async"]
 categories = ["api-bindings", "asynchronous", "cryptography::cryptocurrencies", "network-programming"]
 license = "MITNFA"
 
+[features]
+lightningrpc = []
+all = ["lightningrpc"]
+default = ["all"]
+
 [dependencies]
 tonic = { version = "0.6.2", features = ["transport", "tls"] }
 prost = "0.9.0"

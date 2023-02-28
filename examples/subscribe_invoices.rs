@@ -1,8 +1,12 @@
-// This program connects to LND and prints out all incoming invoices as they settle.
+// This example connects to LND and prints out all incoming invoices as they settle.
+//
 // The program accepts three arguments: address, cert file, macaroon file
 // The address must start with `https://`!
+//
+// Example run: `cargo run --features=lightningrpc --example subscribe_invoices <address> <tls.cert> <file.macaroon>`
 
 #[tokio::main]
+#[cfg(feature = "lightningrpc")]
 async fn main() {
     let mut args = std::env::args_os();
     args.next().expect("not even zeroth arg given");
