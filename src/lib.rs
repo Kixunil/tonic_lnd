@@ -84,12 +84,12 @@ pub type WalletKitClient = walletrpc::wallet_kit_client::WalletKitClient<Interce
 /// The client returned by `connect` function
 ///
 /// This is a convenience type which you most likely want to use instead of raw client.
-pub struct Client {
+pub struct LndClient {
     lightning: LightningClient,
     wallet: WalletKitClient,
 }
 
-impl Client {
+impl LndClient {
     /// Returns the lightning client.
     pub fn lightning(&mut self) -> &mut LightningClient {
         &mut self.lightning
@@ -165,7 +165,7 @@ async fn load_macaroon(path: impl AsRef<Path> + Into<PathBuf>) -> Result<String,
 /// If you have a motivating use case for use of direct data feel free to open an issue and
 /// explain.
 #[cfg_attr(feature = "tracing", tracing::instrument(name = "Connecting to LND"))]
-pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) -> Result<Client, ConnectError> where A: TryInto<tonic::transport::Endpoint> + std::fmt::Debug + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static, CP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug, MP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug {
+pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) -> Result<LndClient, ConnectError> where A: TryInto<tonic::transport::Endpoint> + std::fmt::Debug + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static, CP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug, MP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug {
     let address_str = address.to_string();
     let conn = try_map_err!(address
         .try_into(), |error| InternalConnectError::InvalidAddress { address: address_str.clone(), error: Box::new(error), })
@@ -179,7 +179,7 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
 
     let interceptor = MacaroonInterceptor { macaroon, };
 
-    let client = Client {
+    let client = LndClient {
         lightning: lnrpc::lightning_client::LightningClient::with_interceptor(conn.clone(), interceptor.clone()),
         wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn, interceptor)
     };
