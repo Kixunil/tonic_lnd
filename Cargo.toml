@@ -13,7 +13,8 @@ license = "MITNFA"
 
 [features]
 lightningrpc = []
-all = ["lightningrpc"]
+walletrpc = []
+all = ["lightningrpc", "walletrpc"]
 default = ["all"]
 
 [dependencies]
