@@ -7,20 +7,20 @@ use std::path::PathBuf;
 /// It is currently opaque because it's unclear how the variants will look long-term.
 /// Thus you probably only want to display it.
 #[derive(Debug)]
-pub struct ConnectError {
-    internal: InternalConnectError,
+pub struct LndConnectError {
+    internal: LndInternalConnectError,
 }
 
-impl From<InternalConnectError> for ConnectError {
-    fn from(value: InternalConnectError) -> Self {
-        ConnectError {
+impl From<LndInternalConnectError> for LndConnectError {
+    fn from(value: LndInternalConnectError) -> Self {
+        LndConnectError {
             internal: value,
         }
     }
 }
 
 #[derive(Debug)]
-pub(crate) enum InternalConnectError {
+pub(crate) enum LndInternalConnectError {
     ReadFile { file: PathBuf, error: std::io::Error, },
     ParseCert { file: PathBuf, error: std::io::Error, },
     InvalidAddress { address: String, error: Box<dyn std::error::Error + Send + Sync + 'static>, },
@@ -28,9 +28,9 @@ pub(crate) enum InternalConnectError {
     Connect { address: String, error: tonic::transport::Error, }
 }
 
-impl fmt::Display for ConnectError {
+impl fmt::Display for LndConnectError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use InternalConnectError::*;
+        use LndInternalConnectError::*;
 
         match &self.internal {
             ReadFile { file, .. } => write!(f, "failed to read file {}", file.display()),
@@ -42,9 +42,9 @@ impl fmt::Display for ConnectError {
     }
 }
 
-impl std::error::Error for ConnectError {
+impl std::error::Error for LndConnectError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use InternalConnectError::*;
+        use LndInternalConnectError::*;
 
         match &self.internal {
             ReadFile { error, .. } => Some(error),

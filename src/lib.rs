@@ -67,8 +67,8 @@ pub extern crate tonic;
 
 use std::path::{Path, PathBuf};
 use std::convert::TryInto;
-pub use error::ConnectError;
-use error::InternalConnectError;
+pub use error::LndConnectError;
+use error::LndInternalConnectError;
 use tonic::codegen::InterceptedService;
 use tonic::transport::Channel;
 
@@ -102,7 +102,7 @@ impl LndClient {
 }
 
 /// [`tonic::Status`] is re-exported as `Error` for convenience.
-pub type Error = tonic::Status;
+pub type LndClientError = tonic::Status;
 
 mod error;
 
@@ -138,7 +138,7 @@ pub struct MacaroonInterceptor {
 }
 
 impl tonic::service::Interceptor for MacaroonInterceptor {
-    fn call(&mut self, mut request: tonic::Request<()>) -> Result<tonic::Request<()>, Error> {
+    fn call(&mut self, mut request: tonic::Request<()>) -> Result<tonic::Request<()>, LndClientError> {
         request
             .metadata_mut()
             .insert("macaroon", tonic::metadata::MetadataValue::from_str(&self.macaroon).expect("hex produced non-ascii"));
@@ -146,10 +146,10 @@ impl tonic::service::Interceptor for MacaroonInterceptor {
     }
 }
 
-async fn load_macaroon(path: impl AsRef<Path> + Into<PathBuf>) -> Result<String, InternalConnectError> {
+async fn load_macaroon(path: impl AsRef<Path> + Into<PathBuf>) -> Result<String, LndInternalConnectError> {
     let macaroon = tokio::fs::read(&path)
         .await
-        .map_err(|error| InternalConnectError::ReadFile { file: path.into(), error, })?;
+        .map_err(|error| LndInternalConnectError::ReadFile { file: path.into(), error, })?;
     Ok(hex::encode(&macaroon))
 }
 
@@ -165,15 +165,15 @@ async fn load_macaroon(path: impl AsRef<Path> + Into<PathBuf>) -> Result<String,
 /// If you have a motivating use case for use of direct data feel free to open an issue and
 /// explain.
 #[cfg_attr(feature = "tracing", tracing::instrument(name = "Connecting to LND"))]
-pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) -> Result<LndClient, ConnectError> where A: TryInto<tonic::transport::Endpoint> + std::fmt::Debug + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static, CP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug, MP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug {
+pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) -> Result<LndClient, LndConnectError> where A: TryInto<tonic::transport::Endpoint> + std::fmt::Debug + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static, CP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug, MP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug {
     let address_str = address.to_string();
     let conn = try_map_err!(address
-        .try_into(), |error| InternalConnectError::InvalidAddress { address: address_str.clone(), error: Box::new(error), })
+        .try_into(), |error| LndInternalConnectError::InvalidAddress { address: address_str.clone(), error: Box::new(error), })
         .tls_config(tls::config(cert_file).await?)
-        .map_err(InternalConnectError::TlsConfig)?
+        .map_err(LndInternalConnectError::TlsConfig)?
         .connect()
         .await
-        .map_err(|error| InternalConnectError::Connect { address: address_str, error, })?;
+        .map_err(|error| LndInternalConnectError::Connect { address: address_str, error, })?;
 
     let macaroon = load_macaroon(macaroon_file).await?;
 
@@ -190,9 +190,9 @@ mod tls {
     use std::path::{Path, PathBuf};
     use rustls::{RootCertStore, Certificate, TLSError, ServerCertVerified};
     use webpki::DNSNameRef;
-    use crate::error::{ConnectError, InternalConnectError};
+    use crate::error::{LndConnectError, LndInternalConnectError};
 
-    pub(crate) async fn config(path: impl AsRef<Path> + Into<PathBuf>) -> Result<tonic::transport::ClientTlsConfig, ConnectError> {
+    pub(crate) async fn config(path: impl AsRef<Path> + Into<PathBuf>) -> Result<tonic::transport::ClientTlsConfig, LndConnectError> {
         let mut tls_config = rustls::ClientConfig::new();
         tls_config.dangerous().set_certificate_verifier(std::sync::Arc::new(CertVerifier::load(path).await?));
         tls_config.set_protocols(&["h2".into()]);
@@ -205,13 +205,13 @@ mod tls {
     }
 
     impl CertVerifier {
-        pub(crate) async fn load(path: impl AsRef<Path> + Into<PathBuf>) -> Result<Self, InternalConnectError> {
+        pub(crate) async fn load(path: impl AsRef<Path> + Into<PathBuf>) -> Result<Self, LndInternalConnectError> {
             let contents = try_map_err!(tokio::fs::read(&path).await,
-                |error| InternalConnectError::ReadFile { file: path.into(), error });
+                |error| LndInternalConnectError::ReadFile { file: path.into(), error });
             let mut reader = &*contents;
 
             let certs = try_map_err!(rustls_pemfile::certs(&mut reader),
-                |error| InternalConnectError::ParseCert { file: path.into(), error });
+                |error| LndInternalConnectError::ParseCert { file: path.into(), error });
 
             #[cfg(feature = "tracing")] {
                 tracing::debug!("Certificates loaded (Count: {})", certs.len());
