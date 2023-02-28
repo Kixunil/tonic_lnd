@@ -137,6 +137,7 @@ pub mod walletrpc {
     tonic::include_proto!("walletrpc");
 }
 
+#[cfg(feature = "signrpc")]
 pub mod signrpc {
     tonic::include_proto!("signrpc");
 }
