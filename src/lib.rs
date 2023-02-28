@@ -95,6 +95,7 @@ pub type PeersClient =
     peersrpc::peers_client::PeersClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 // Convenience type alias for signer client.
+#[cfg(feature = "signrpc")]
 pub type SignerClient = signrpc::signer_client::SignerClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 /// The client returned by `connect` function
@@ -105,6 +106,7 @@ pub struct Client {
     lightning: LightningClient,
     #[cfg(feature = "walletrpc")]
     wallet: WalletKitClient,
+    #[cfg(feature = "signrpc")]
     signer: SignerClient,
     peers: PeersClient,
 }
@@ -123,6 +125,7 @@ impl Client {
     }
 
     /// Returns the signer client.
+    #[cfg(feature = "signrpc")]
     pub fn signer(&mut self) -> &mut SignerClient {
         &mut self.signer
     }
@@ -161,6 +164,7 @@ pub mod walletrpc {
     tonic::include_proto!("walletrpc");
 }
 
+#[cfg(feature = "signrpc")]
 pub mod signrpc {
     tonic::include_proto!("signrpc");
 }
@@ -228,6 +232,7 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
             conn.clone(),
             interceptor.clone(),
         ),
+        #[cfg(feature = "signrpc")]
         signer: signrpc::signer_client::SignerClient::with_interceptor(conn, interceptor),
     };
     Ok(client)
