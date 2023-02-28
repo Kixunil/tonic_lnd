@@ -99,6 +99,7 @@ pub type VersionerClient =
     verrpc::versioner_client::VersionerClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 // Convenience type alias for signer client.
+#[cfg(feature = "signrpc")]
 pub type SignerClient = signrpc::signer_client::SignerClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 /// The client returned by `connect` function
@@ -110,6 +111,7 @@ pub struct Client {
     lightning: LightningClient,
     #[cfg(feature = "walletrpc")]
     wallet: WalletKitClient,
+    #[cfg(feature = "signrpc")]
     signer: SignerClient,
     peers: PeersClient,
     version: VersionerClient,
@@ -129,6 +131,7 @@ impl Client {
     }
 
     /// Returns the signer client.
+    #[cfg(feature = "signrpc")]
     pub fn signer(&mut self) -> &mut SignerClient {
         &mut self.signer
     }
@@ -172,6 +175,7 @@ pub mod walletrpc {
     tonic::include_proto!("walletrpc");
 }
 
+#[cfg(feature = "signrpc")]
 pub mod signrpc {
     tonic::include_proto!("signrpc");
 }
@@ -243,8 +247,9 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
             conn.clone(),
             interceptor.clone(),
         ),
-        version: verrpc::versioner_client::VersionerClient::with_interceptor(conn.clone(), interceptor.clone()),
-        signer: signrpc::signer_client::SignerClient::with_interceptor(conn, interceptor),
+        #[cfg(feature = "signrpc")]
+        signer: signrpc::signer_client::SignerClient::with_interceptor(conn.clone(), interceptor.clone()),
+        version: verrpc::versioner_client::VersionerClient::with_interceptor(conn, interceptor),
     };
     Ok(client)
 }
