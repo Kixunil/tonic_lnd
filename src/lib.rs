@@ -85,6 +85,10 @@ pub type LightningClient = lnrpc::lightning_client::LightningClient<InterceptedS
 #[cfg(feature = "walletrpc")]
 pub type WalletKitClient = walletrpc::wallet_kit_client::WalletKitClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
+/// Convenience type alias for router client.
+#[cfg(feature = "routerrpc")]
+pub type RouterClient = routerrpc::router_client::RouterClient<tonic::codegen::InterceptedService<Channel, MacaroonInterceptor>>;
+
 /// The client returned by `connect` function
 ///
 /// This is a convenience type which you most likely want to use instead of raw client.
@@ -93,6 +97,8 @@ pub struct LndClient {
     lightning: LightningClient,
     #[cfg(feature = "walletrpc")]
     wallet: WalletKitClient,
+    #[cfg(feature = "routerrpc")]
+    router: RouterClient,
 }
 
 impl LndClient {
@@ -106,6 +112,12 @@ impl LndClient {
     #[cfg(feature = "walletrpc")]
     pub fn wallet(&mut self) -> &mut WalletKitClient {
         &mut self.wallet
+    }
+
+    /// Returns the router client.
+    #[cfg(feature = "routerrpc")]
+    pub fn router(&mut self) -> &mut RouterClient {
+        &mut self.router
     }
 }
 
@@ -140,6 +152,11 @@ pub mod walletrpc {
 #[cfg(feature = "signrpc")]
 pub mod signrpc {
     tonic::include_proto!("signrpc");
+}
+
+#[cfg(feature = "routerrpc")]
+pub mod routerrpc {
+    tonic::include_proto!("routerrpc");
 }
 
 /// Supplies requests with macaroon
@@ -178,6 +195,7 @@ async fn load_macaroon(path: impl AsRef<Path> + Into<PathBuf>) -> Result<String,
 #[cfg_attr(feature = "tracing", tracing::instrument(name = "Connecting to LND"))]
 pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) -> Result<LndClient, LndConnectError> where A: TryInto<tonic::transport::Endpoint> + std::fmt::Debug + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static, CP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug, MP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug {
     let address_str = address.to_string();
+
     #[allow(unused_variables)]
     let conn = try_map_err!(address
         .try_into(), |error| LndInternalConnectError::InvalidAddress { address: address_str.clone(), error: Box::new(error), })
@@ -195,8 +213,12 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
     let client = LndClient {
         #[cfg(feature = "lightningrpc")]
         lightning: lnrpc::lightning_client::LightningClient::with_interceptor(conn.clone(), interceptor.clone()),
+
         #[cfg(feature = "walletrpc")]
-        wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn, interceptor)
+        wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn, interceptor),
+
+        #[cfg(feature = "routerrpc")]
+        router: routerrpc::router_client::RouterClient::with_interceptor(conn, interceptor)
     };
     Ok(client)
 }
