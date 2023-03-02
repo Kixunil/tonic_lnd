@@ -33,12 +33,16 @@ async fn main() {
         tokio::sync::mpsc::channel::<tonic_lnd::routerrpc::ForwardHtlcInterceptResponse>(1024);
     let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
 
+    println!("Subscribing to HTLC Interceptor ------> ");
+
     let mut htlc_stream = client
         .router()
         .htlc_interceptor(stream)
         .await
         .expect("Failed to call subscribe_invoices")
         .into_inner();
+
+    println!("Subscribed to HTLC Interceptor <------");
 
     while let Some(htlc) = htlc_stream
         .message()
