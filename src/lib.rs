@@ -81,12 +81,16 @@ pub type LightningClient = lnrpc::lightning_client::LightningClient<InterceptedS
 /// Convenience type alias for wallet client.
 pub type WalletKitClient = walletrpc::wallet_kit_client::WalletKitClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
+// Convenience type alias for signer client.
+pub type SignerClient = signrpc::signer_client::SignerClient<InterceptedService<Channel, MacaroonInterceptor>>;
+
 /// The client returned by `connect` function
 ///
 /// This is a convenience type which you most likely want to use instead of raw client.
 pub struct Client {
     lightning: LightningClient,
     wallet: WalletKitClient,
+    signer: SignerClient,
 }
 
 impl Client {
@@ -98,6 +102,11 @@ impl Client {
     /// Returns the wallet client.
     pub fn wallet(&mut self) -> &mut WalletKitClient {
         &mut self.wallet
+    }
+
+    /// Returns the signer client.
+    pub fn signer(&mut self) -> &mut SignerClient {
+        &mut self.signer
     }
 }
 
@@ -181,7 +190,8 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
 
     let client = Client {
         lightning: lnrpc::lightning_client::LightningClient::with_interceptor(conn.clone(), interceptor.clone()),
-        wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn, interceptor)
+        wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn.clone(), interceptor.clone()),
+        signer: signrpc::signer_client::SignerClient::with_interceptor(conn, interceptor)
     };
     Ok(client)
 }
