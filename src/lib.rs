@@ -79,7 +79,12 @@ use tracing;
 pub type LightningClient = lnrpc::lightning_client::LightningClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 /// Convenience type alias for wallet client.
-pub type WalletKitClient = walletrpc::wallet_kit_client::WalletKitClient<InterceptedService<Channel, MacaroonInterceptor>>;
+pub type WalletKitClient =
+    walletrpc::wallet_kit_client::WalletKitClient<InterceptedService<Channel, MacaroonInterceptor>>;
+
+/// Convenience type alias for peers service client.
+pub type PeersClient =
+    peersrpc::peers_client::PeersClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 // Convenience type alias for signer client.
 pub type SignerClient = signrpc::signer_client::SignerClient<InterceptedService<Channel, MacaroonInterceptor>>;
@@ -91,6 +96,7 @@ pub struct Client {
     lightning: LightningClient,
     wallet: WalletKitClient,
     signer: SignerClient,
+    peers: PeersClient,
 }
 
 impl Client {
@@ -107,6 +113,11 @@ impl Client {
     /// Returns the signer client.
     pub fn signer(&mut self) -> &mut SignerClient {
         &mut self.signer
+    }
+
+    /// Returns the peers client.
+    pub fn peers(&mut self) -> &mut PeersClient {
+        &mut self.peers
     }
 }
 
@@ -138,6 +149,10 @@ pub mod walletrpc {
 
 pub mod signrpc {
     tonic::include_proto!("signrpc");
+}
+
+pub mod peersrpc {
+    tonic::include_proto!("peersrpc");
 }
 
 /// Supplies requests with macaroon
@@ -191,7 +206,11 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
     let client = Client {
         lightning: lnrpc::lightning_client::LightningClient::with_interceptor(conn.clone(), interceptor.clone()),
         wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn.clone(), interceptor.clone()),
-        signer: signrpc::signer_client::SignerClient::with_interceptor(conn, interceptor)
+        peers: peersrpc::peers_client::PeersClient::with_interceptor(
+            conn.clone(),
+            interceptor.clone(),
+        ),
+        signer: signrpc::signer_client::SignerClient::with_interceptor(conn, interceptor),
     };
     Ok(client)
 }
