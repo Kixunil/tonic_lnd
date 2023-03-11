@@ -1,6 +1,6 @@
 [package]
 name = "tonic_lnd"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Martin Habovstiak <martin.habovstiak@gmail.com>"]
 edition = "2018"
 description = "An async library implementing LND RPC via tonic and prost"
