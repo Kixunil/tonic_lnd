@@ -65,6 +65,8 @@ async fn main() {
 However some dependencies may need to be downgraded using `cargo update -p <package> --precise <version>`.
 `Cargo-msrv.lock` is included for reference - it is the lock file used to test the crate and contains known working versions of dependencies.
 
+The MSRV won't be bumped sooner than Debian Bookworm release.
+
 ## License
 
 MITNFA
