@@ -74,6 +74,7 @@ use std::path::{Path, PathBuf};
 use std::convert::TryInto;
 pub use error::ConnectError;
 use error::InternalConnectError;
+#[allow(unused_imports)]
 use tonic::codegen::InterceptedService;
 #[allow(unused_imports)]
 use tonic::transport::Channel;
@@ -91,6 +92,7 @@ pub type LightningClient = lnrpc::lightning_client::LightningClient<InterceptedS
 pub type WalletKitClient = walletrpc::wallet_kit_client::WalletKitClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 /// Convenience type alias for peers service client.
+#[cfg(feature = "peersrpc")]
 pub type PeersClient =
     peersrpc::peers_client::PeersClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
@@ -113,6 +115,7 @@ pub struct Client {
     wallet: WalletKitClient,
     #[cfg(feature = "signrpc")]
     signer: SignerClient,
+    #[cfg(feature = "peersrpc")]
     peers: PeersClient,
     version: VersionerClient,
 }
@@ -142,6 +145,7 @@ impl Client {
     }
 
     /// Returns the peers client.
+    #[cfg(feature = "peersrpc")]
     pub fn peers(&mut self) -> &mut PeersClient {
         &mut self.peers
     }
@@ -180,12 +184,13 @@ pub mod signrpc {
     tonic::include_proto!("signrpc");
 }
 
-pub mod verrpc {
-    tonic::include_proto!("verrpc");
-}
-
+#[cfg(feature = "peersrpc")]
 pub mod peersrpc {
     tonic::include_proto!("peersrpc");
+}
+
+pub mod verrpc {
+    tonic::include_proto!("verrpc");
 }
 
 /// Supplies requests with macaroon
@@ -243,6 +248,7 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
         lightning: lnrpc::lightning_client::LightningClient::with_interceptor(conn.clone(), interceptor.clone()),
         #[cfg(feature = "walletrpc")]
         wallet: walletrpc::wallet_kit_client::WalletKitClient::with_interceptor(conn.clone(), interceptor.clone()),
+        #[cfg(feature = "peersrpc")]
         peers: peersrpc::peers_client::PeersClient::with_interceptor(
             conn.clone(),
             interceptor.clone(),
