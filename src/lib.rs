@@ -8,7 +8,7 @@ Rust implementation of LND RPC client using async GRPC library `tonic`.
 Review it before using with mainnet funds!**
 
 This crate implements LND GRPC using [`tonic`](https://docs.rs/tonic/) and [`prost`](https://docs.rs/prost/).
-Apart from being up-to-date at the time of writing (:D) it also allows `aync` usage.
+Apart from being up-to-date at the time of writing (:D) it also allows `async` usage.
 It contains vendored `rpc.proto` file so LND source code is not *required*
 but accepts an environment variable `LND_REPO_DIR` which overrides the vendored `rpc.proto` file.
 This can be used to test new features in non-released `lnd`.
@@ -91,6 +91,10 @@ pub type WalletKitClient =
 pub type PeersClient =
     peersrpc::peers_client::PeersClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
+/// Convenience type alias for versioner service client.
+pub type VersionerClient =
+    verrpc::versioner_client::VersionerClient<InterceptedService<Channel, MacaroonInterceptor>>;
+
 // Convenience type alias for signer client.
 pub type SignerClient = signrpc::signer_client::SignerClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
@@ -102,6 +106,7 @@ pub struct Client {
     wallet: WalletKitClient,
     signer: SignerClient,
     peers: PeersClient,
+    version: VersionerClient,
 }
 
 impl Client {
@@ -118,6 +123,11 @@ impl Client {
     /// Returns the signer client.
     pub fn signer(&mut self) -> &mut SignerClient {
         &mut self.signer
+    }
+
+    /// Returns the versioner client.
+    pub fn versioner(&mut self) -> &mut VersionerClient {
+        &mut self.version
     }
 
     /// Returns the peers client.
@@ -154,6 +164,10 @@ pub mod walletrpc {
 
 pub mod signrpc {
     tonic::include_proto!("signrpc");
+}
+
+pub mod verrpc {
+    tonic::include_proto!("verrpc");
 }
 
 pub mod peersrpc {
@@ -215,6 +229,7 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
             conn.clone(),
             interceptor.clone(),
         ),
+        version: verrpc::versioner_client::VersionerClient::with_interceptor(conn.clone(), interceptor.clone()),
         signer: signrpc::signer_client::SignerClient::with_interceptor(conn, interceptor),
     };
     Ok(client)
