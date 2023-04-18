@@ -101,6 +101,7 @@ pub type SignerClient = signrpc::signer_client::SignerClient<InterceptedService<
 /// The client returned by `connect` function
 ///
 /// This is a convenience type which you most likely want to use instead of raw client.
+#[derive(Clone)]
 pub struct Client {
     lightning: LightningClient,
     wallet: WalletKitClient,
