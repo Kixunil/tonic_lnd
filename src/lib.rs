@@ -98,6 +98,9 @@ pub type VersionerClient =
 // Convenience type alias for signer client.
 pub type SignerClient = signrpc::signer_client::SignerClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
+pub type WalletUnlockerClient =
+    lnrpc::wallet_unlocker_client::WalletUnlockerClient<Channel>;
+
 /// The client returned by `connect` function
 ///
 /// This is a convenience type which you most likely want to use instead of raw client.
@@ -133,6 +136,18 @@ impl Client {
     /// Returns the peers client.
     pub fn peers(&mut self) -> &mut PeersClient {
         &mut self.peers
+    }
+}
+
+/// WalletUnlocker holds the LND sub-client responsible for unlocking the wallet.
+pub struct WalletUnlocker {
+    client: WalletUnlockerClient, 
+}
+
+impl WalletUnlocker {
+    /// Returns the wallet locker client.
+    pub fn client(&mut self) -> &mut WalletUnlockerClient {
+         &mut self.client
     }
 }
 
@@ -231,6 +246,25 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
         ),
         version: verrpc::versioner_client::VersionerClient::with_interceptor(conn.clone(), interceptor.clone()),
         signer: signrpc::signer_client::SignerClient::with_interceptor(conn, interceptor),
+    };
+    Ok(client)
+}
+
+#[cfg_attr(feature = "tracing", tracing::instrument(name = "Connecting to LND Wallet Unlocker"))]
+pub async fn connect_wallet_unlocker<A, CP>(address: A, cert_file: CP) -> Result<WalletUnlocker, ConnectError> where A: TryInto<tonic::transport::Endpoint> + std::fmt::Debug + ToString, <A as TryInto<tonic::transport::Endpoint>>::Error: std::error::Error + Send + Sync + 'static, CP: AsRef<Path> + Into<PathBuf> + std::fmt::Debug {
+    let address_str = address.to_string();
+    let conn = try_map_err!(address
+        .try_into(), |error| InternalConnectError::InvalidAddress { address: address_str.clone(), error: Box::new(error), })
+        .tls_config(tls::config(cert_file).await?)
+        .map_err(InternalConnectError::TlsConfig)?
+        .connect()
+        .await
+        .map_err(|error| InternalConnectError::Connect { address: address_str, error, })?;
+
+    let wallet_client = lnrpc::wallet_unlocker_client::WalletUnlockerClient::new(conn);
+
+    let client = WalletUnlocker {
+        client: wallet_client,
     };
     Ok(client)
 }
