@@ -1,4 +1,12 @@
+// This example fetches and prints the version info of the running lnd daemon
+//
+// The program accepts three arguments: address, cert file, macaroon file
+// The address must start with `https://`!
+//
+// Example run: `cargo run --features=versionrpc --example getversion <address> <tls.cert> <file.macaroon>`
+
 #[tokio::main]
+#[cfg(feature = "versionrpc")]
 async fn main() {
     let mut args = std::env::args_os();
     args.next().expect("not even zeroth arg given");

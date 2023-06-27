@@ -97,6 +97,7 @@ pub type PeersClient =
     peersrpc::peers_client::PeersClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 /// Convenience type alias for versioner service client.
+#[cfg(feature = "versionrpc")]
 pub type VersionerClient =
     verrpc::versioner_client::VersionerClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
@@ -117,6 +118,7 @@ pub struct Client {
     signer: SignerClient,
     #[cfg(feature = "peersrpc")]
     peers: PeersClient,
+    #[cfg(feature = "versionrpc")]
     version: VersionerClient,
 }
 
@@ -140,6 +142,7 @@ impl Client {
     }
 
     /// Returns the versioner client.
+    #[cfg(feature = "versionrpc")]
     pub fn versioner(&mut self) -> &mut VersionerClient {
         &mut self.version
     }
@@ -255,6 +258,7 @@ pub async fn connect<A, CP, MP>(address: A, cert_file: CP, macaroon_file: MP) ->
         ),
         #[cfg(feature = "signrpc")]
         signer: signrpc::signer_client::SignerClient::with_interceptor(conn.clone(), interceptor.clone()),
+        #[cfg(feature = "versionrpc")]
         version: verrpc::versioner_client::VersionerClient::with_interceptor(conn, interceptor),
     };
     Ok(client)
