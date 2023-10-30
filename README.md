@@ -10,7 +10,7 @@ Rust implementation of LND RPC client using async gRPC library `tonic`.
 **Warning: this crate is in early development and may have unknown problems!
 Review it before using with mainnet funds!**
 
-This crate supports *[Lightning](https://lightning.engineering/api-docs/category/lightning-service)*, *[WalletKit](https://lightning.engineering/api-docs/category/walletkit-service)*, *[Signer](https://lightning.engineering/api-docs/category/signer-service)*, and *[Peer](https://lightning.engineering/api-docs/category/peers-service)* RPC APIs from LND [v0.15.4-beta](https://github.com/lightningnetwork/lnd/tree/v0.15.4-beta)
+This crate supports *[Lightning](https://lightning.engineering/api-docs/category/lightning-service)*, *[WalletKit](https://lightning.engineering/api-docs/category/walletkit-service)*, *[Signer](https://lightning.engineering/api-docs/category/signer-service)*, *[State](https://lightning.engineering/api-docs/category/state-service)*, and *[Peer](https://lightning.engineering/api-docs/category/peers-service)* RPC APIs from LND [v0.15.4-beta](https://github.com/lightningnetwork/lnd/tree/v0.15.4-beta)
 
 This crate implements LND GRPC using [`tonic`](https://docs.rs/tonic/) and [`prost`](https://docs.rs/prost/).
 Apart from being up-to-date at the time of writing (:D) it also allows `async` usage.
