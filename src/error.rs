@@ -13,19 +13,29 @@ pub struct ConnectError {
 
 impl From<InternalConnectError> for ConnectError {
     fn from(value: InternalConnectError) -> Self {
-        ConnectError {
-            internal: value,
-        }
+        ConnectError { internal: value }
     }
 }
 
 #[derive(Debug)]
 pub(crate) enum InternalConnectError {
-    ReadFile { file: PathBuf, error: std::io::Error, },
-    ParseCert { file: PathBuf, error: std::io::Error, },
-    InvalidAddress { address: String, error: Box<dyn std::error::Error + Send + Sync + 'static>, },
+    ReadFile {
+        file: PathBuf,
+        error: std::io::Error,
+    },
+    ParseCert {
+        file: PathBuf,
+        error: std::io::Error,
+    },
+    InvalidAddress {
+        address: String,
+        error: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
     TlsConfig(tonic::transport::Error),
-    Connect { address: String, error: tonic::transport::Error, }
+    Connect {
+        address: String,
+        error: tonic::transport::Error,
+    },
 }
 
 impl fmt::Display for ConnectError {
