@@ -7,7 +7,7 @@ fn main() -> std::io::Result<()> {
             let mut lnd_rpc_dir = PathBuf::from(lnd_repo_path);
             lnd_rpc_dir.push("lnrpc");
             lnd_rpc_dir
-        },
+        }
         None => PathBuf::from("vendor"),
     };
 
